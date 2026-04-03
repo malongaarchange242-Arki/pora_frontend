@@ -187,8 +187,8 @@ class APIService {
      * Call PORA service for university/centre rankings
      */
     async callPoraService(type, payload) {
+        const endpoint = type === 'universities' ? 'universites' : 'centres';
         try {
-            const endpoint = type === 'universities' ? 'universites' : 'centres';
             this.logger.log(`🏆 Calling PORA service (${endpoint}):`, payload);
             
             const result = await this.fetchWithRetry(
@@ -205,7 +205,7 @@ class APIService {
         } catch (error) {
             this.logger.error(`❌ PORA call (${endpoint}) failed:`, error);
             // Return empty result instead of throwing to allow graceful degradation
-            return { universites: [] };
+            return endpoint === 'universites' ? { universites: [] } : { centres: [] };
         }
     }
 
