@@ -20,9 +20,9 @@ const ENV = {
     // ============================================
     // API SETTINGS
     // ============================================
-    API_TIMEOUT_MS: 10000,
-    API_RETRY_ATTEMPTS: 3,
-    API_RETRY_DELAY_MS: 1000,
+    API_TIMEOUT_MS: 30000,
+    API_RETRY_ATTEMPTS: 4,
+    API_RETRY_DELAY_MS: 1500,
 
     // ============================================
     // FEATURE FLAGS

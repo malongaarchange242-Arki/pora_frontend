@@ -33,30 +33,39 @@ class APIService {
         let lastError;
         
         for (let attempt = 1; attempt <= this.RETRY_ATTEMPTS; attempt++) {
+            let timeout;
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+                timeout = setTimeout(() => controller.abort('Request timeout'), this.TIMEOUT_MS);
                 
                 const response = await fetch(url, {
                     ...options,
                     signal: controller.signal
                 });
-                
-                clearTimeout(timeout);
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
                 }
                 
                 return await response.json();
             } catch (error) {
-                lastError = error;
+                const isAbort =
+                    error?.name === 'AbortError' ||
+                    error?.message?.includes('aborted') ||
+                    error?.message?.includes('timeout');
+
+                lastError = isAbort
+                    ? new Error(`Request timed out after ${this.TIMEOUT_MS}ms`)
+                    : error;
+
                 this.logger.warn(`🔄 Attempt ${attempt}/${this.RETRY_ATTEMPTS} failed:`, error.message);
                 
                 if (attempt < this.RETRY_ATTEMPTS) {
                     const delay = this.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
+            } finally {
+                if (timeout) clearTimeout(timeout);
             }
         }
         
