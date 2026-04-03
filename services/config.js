@@ -42,8 +42,8 @@ const CONFIG = {
     // ORIENTATION SERVICES (PROA & PORA)
     // ============================================
     SERVICES: {
-        PROA_URL: 'http://localhost:8000',        // Orientation computation
-        PORA_URL: 'http://localhost:8080',        // University ranking
+        PROA_URL: 'https://universearch-proa-service.onrender.com',        // Orientation computation
+        PORA_URL: 'https://universearch-pora-service.onrender.com',        // University ranking
         TIMEOUT_MS: 10000,                         // 10 second timeout
         RETRY_ATTEMPTS: 3,                         // Retry failed calls 3 times
         RETRY_DELAY_MS: 1000                       // 1 second initial delay (exponential)
