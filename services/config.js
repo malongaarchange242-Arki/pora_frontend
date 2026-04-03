@@ -86,58 +86,58 @@ const CONFIG = {
     // INITIALIZE CONFIGURATION (called on page load)
     // ============================================
     async initialize() {
-        console.log('⚙️ Initializing configuration...');
-        
-        // Step 1: Try to load from backend secure endpoint (production)
-        // Only attempt if running on a proper server (not file:// or localhost)
-        if (window.location.protocol !== 'file:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        console.log('Initializing configuration...');
+
+        // Step 1: Load from window.ENV / window.__ENV first.
+        const runtimeEnv = window.ENV || window.__ENV;
+        if (runtimeEnv) {
             try {
-                const response = await fetch('/api/config', {
-                    headers: { 'Accept': 'application/json' },
-                    timeout: 2000
-                });
-                
-                if (response.ok) {
-                    const secureConfig = await response.json();
-                    Object.assign(this, secureConfig);
-                    console.log('✅ Loaded secure config from backend');
-                    return;
-                }
+                this.SUPABASE.URL = runtimeEnv.SUPABASE_URL || this.SUPABASE.URL;
+                this.SUPABASE.ANON_KEY = runtimeEnv.SUPABASE_ANON_KEY || this.SUPABASE.ANON_KEY;
+                this.SERVICES.PROA_URL = runtimeEnv.PROA_SERVICE_URL || runtimeEnv.PROA_URL || this.SERVICES.PROA_URL;
+                this.SERVICES.PORA_URL = runtimeEnv.PORA_SERVICE_URL || runtimeEnv.PORA_URL || this.SERVICES.PORA_URL;
+                this.SERVICES.TIMEOUT_MS = runtimeEnv.API_TIMEOUT_MS || runtimeEnv.TIMEOUT_MS || this.SERVICES.TIMEOUT_MS;
+                this.SERVICES.RETRY_ATTEMPTS = runtimeEnv.API_RETRY_ATTEMPTS || runtimeEnv.RETRY_ATTEMPTS || this.SERVICES.RETRY_ATTEMPTS;
+                this.SERVICES.RETRY_DELAY_MS = runtimeEnv.API_RETRY_DELAY_MS || runtimeEnv.RETRY_DELAY_MS || this.SERVICES.RETRY_DELAY_MS;
+                this.UI.DEBUG_LOG_LEVEL = runtimeEnv.DEBUG_LOG_LEVEL || this.UI.DEBUG_LOG_LEVEL;
+                console.log('Loaded config from env.js / env-loader.js');
             } catch (error) {
-                console.debug('ℹ️ Backend config endpoint not available (expected in development)');
+                console.warn('Could not load from env.js:', error.message);
             }
         }
 
-        // Step 2: Load from window.ENV (set by env.js)
-        if (window.ENV) {
-            try {
-                this.SUPABASE.URL = window.ENV.SUPABASE_URL || this.SUPABASE.URL;
-                this.SUPABASE.ANON_KEY = window.ENV.SUPABASE_ANON_KEY || this.SUPABASE.ANON_KEY;
-                this.SERVICES.PROA_URL = window.ENV.PROA_SERVICE_URL || this.SERVICES.PROA_URL;
-                this.SERVICES.PORA_URL = window.ENV.PORA_SERVICE_URL || this.SERVICES.PORA_URL;
-                this.SERVICES.TIMEOUT_MS = window.ENV.API_TIMEOUT_MS || this.SERVICES.TIMEOUT_MS;
-                this.SERVICES.RETRY_ATTEMPTS = window.ENV.API_RETRY_ATTEMPTS || this.SERVICES.RETRY_ATTEMPTS;
-                this.SERVICES.RETRY_DELAY_MS = window.ENV.API_RETRY_DELAY_MS || this.SERVICES.RETRY_DELAY_MS;
-                this.UI.DEBUG_LOG_LEVEL = window.ENV.DEBUG_LOG_LEVEL || this.UI.DEBUG_LOG_LEVEL;
-                console.log('✅ Loaded config from env.js');
-            } catch (error) {
-                console.warn('⚠️ Could not load from env.js:', error.message);
-            }
-        }
-
-        // Step 3: Fall back to localStorage (user-configured)
+        // Step 2: Fall back to localStorage.
         const stored = localStorage.getItem('orientation-config');
         if (stored) {
             try {
                 const storedConfig = JSON.parse(stored);
                 Object.assign(this, storedConfig);
-                console.log('✅ Loaded config from localStorage');
+                console.log('Loaded config from localStorage');
             } catch (error) {
-                console.warn('⚠️ Invalid localStorage config:', error.message);
+                console.warn('Invalid localStorage config:', error.message);
             }
         }
 
-        console.log('✅ Configuration ready');
+        // Step 3: Optional backend endpoint, disabled by default.
+        if (window.ENABLE_BACKEND_CONFIG === true) {
+            try {
+                const response = await fetch('/api/config', {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const secureConfig = await response.json();
+                    Object.assign(this, secureConfig);
+                    console.log('Loaded secure config from backend');
+                } else {
+                    console.debug('Backend config endpoint returned ' + response.status);
+                }
+            } catch (error) {
+                console.debug('Backend config endpoint not available');
+            }
+        }
+
+        console.log('Configuration ready');
     },
 
     /**
