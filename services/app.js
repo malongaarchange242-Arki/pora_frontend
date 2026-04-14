@@ -106,55 +106,64 @@ class OrientationApp {
 
             this.logger.info('🔑 JWT token found, fetching user profile...');
 
-            // Fetch user profile from PROA service using JWT
-            const profileResponse = await fetch(`${window.CONFIG.SERVICES.PROA_URL}/orientation/profile`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${jwtToken}`,
-                    'Content-Type': 'application/json'
+            try {
+                // Fetch user profile from PROA service using JWT
+                const profileResponse = await fetch(`${window.CONFIG.SERVICES.PROA_URL}/orientation/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 5000 // 5 second timeout
+                });
+
+                if (!profileResponse.ok) {
+                    this.logger.warn(`⚠️ Profile fetch failed with status ${profileResponse.status}, falling back to welcome screen`);
+                    return false;
                 }
-            });
 
-            if (!profileResponse.ok) {
-                throw new Error(`Profile fetch failed: ${profileResponse.status}`);
+                const userProfile = await profileResponse.json();
+                this.logger.info('👤 User profile retrieved:', userProfile);
+
+                // Map user_type to quiz role
+                const userType = userProfile.user_type || 'bachelier';
+                let quizRole;
+
+                switch (userType.toLowerCase()) {
+                    case 'bachelier':
+                        quizRole = 'student'; // 15 questions - exploration
+                        break;
+                    case 'etudiant':
+                        quizRole = 'student'; // 10 questions - réorientation
+                        break;
+                    case 'parent':
+                        quizRole = 'parent'; // 5 questions - guidage
+                        break;
+                    default:
+                        quizRole = 'student'; // Default fallback
+                        this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
+                }
+
+                this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
+
+                // Store user info for later use
+                this.userProfile = userProfile;
+                this.jwtToken = jwtToken;
+
+                // Start quiz automatically
+                await this.startQuiz(quizRole);
+
+                return true; // Auto-started successfully
+
+            } catch (fetchError) {
+                this.logger.warn(`⚠️ Profile fetch error (non-blocking): ${fetchError.message}`);
+                // Don't fail the app initialization just because profile fetch failed
+                return false; // Fall back to welcome screen
             }
-
-            const userProfile = await profileResponse.json();
-            this.logger.info('👤 User profile retrieved:', userProfile);
-
-            // Map user_type to quiz role
-            const userType = userProfile.user_type || 'bachelier';
-            let quizRole;
-
-            switch (userType.toLowerCase()) {
-                case 'bachelier':
-                    quizRole = 'student'; // 15 questions - exploration
-                    break;
-                case 'etudiant':
-                    quizRole = 'student'; // 10 questions - réorientation
-                    break;
-                case 'parent':
-                    quizRole = 'parent'; // 5 questions - guidage
-                    break;
-                default:
-                    quizRole = 'student'; // Default fallback
-                    this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
-            }
-
-            this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
-
-            // Store user info for later use
-            this.userProfile = userProfile;
-            this.jwtToken = jwtToken;
-
-            // Start quiz automatically
-            await this.startQuiz(quizRole);
-
-            return true; // Auto-started successfully
 
         } catch (error) {
-            this.logger.error('❌ Auto-start failed:', error);
-            // Fall back to normal welcome screen
+            this.logger.warn('⚠️ Auto-start check failed (non-blocking):', error);
+            // Fall back to normal welcome screen - don't crash the app
             return false;
         }
     }
