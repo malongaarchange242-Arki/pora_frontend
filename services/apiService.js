@@ -6,8 +6,8 @@
 
 class APIService {
     constructor(config = {}) {
-        this.PROA_URL = config.PROA_URL || 'https://universearch-proa-service.onrender.com';
-        this.PORA_URL = config.PORA_URL || 'https://universearch-pora-service.onrender.com';
+        this.PROA_URL = config.PROA_URL || 'http://localhost:8000';
+        this.PORA_URL = config.PORA_URL || 'http://localhost:8080';
         this.TIMEOUT_MS = config.TIMEOUT_MS || 10000;
         this.RETRY_ATTEMPTS = config.RETRY_ATTEMPTS || 3;
         this.RETRY_DELAY_MS = config.RETRY_DELAY_MS || 1000;
@@ -33,39 +33,30 @@ class APIService {
         let lastError;
         
         for (let attempt = 1; attempt <= this.RETRY_ATTEMPTS; attempt++) {
-            let timeout;
             try {
                 const controller = new AbortController();
-                timeout = setTimeout(() => controller.abort('Request timeout'), this.TIMEOUT_MS);
+                const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
                 
                 const response = await fetch(url, {
                     ...options,
                     signal: controller.signal
                 });
-
+                
+                clearTimeout(timeout);
+                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
                 }
                 
                 return await response.json();
             } catch (error) {
-                const isAbort =
-                    error?.name === 'AbortError' ||
-                    error?.message?.includes('aborted') ||
-                    error?.message?.includes('timeout');
-
-                lastError = isAbort
-                    ? new Error(`Request timed out after ${this.TIMEOUT_MS}ms`)
-                    : error;
-
+                lastError = error;
                 this.logger.warn(`🔄 Attempt ${attempt}/${this.RETRY_ATTEMPTS} failed:`, error.message);
                 
                 if (attempt < this.RETRY_ATTEMPTS) {
                     const delay = this.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
-            } finally {
-                if (timeout) clearTimeout(timeout);
             }
         }
         
@@ -73,11 +64,11 @@ class APIService {
     }
 
     /**
-     * Load quiz structure from Supabase
+     * Load quiz structure from Supabase - FALLBACK method
      */
-    async loadQuizStructure() {
+    async loadQuizStructureFromSupabase() {
         try {
-            this.logger.log('📥 Loading quiz structure...');
+            this.logger.log('📥 Loading quiz structure from Supabase (FALLBACK)...');
             
             // Fetch questions
             const { data: questions, error: qError } = await this.supabase
@@ -98,8 +89,59 @@ class APIService {
             // Merge options into questions
             const enrichedQuestions = this.mergeOptionsIntoQuestions(questions, options);
             
-            this.logger.log(`✅ Loaded ${enrichedQuestions.length} questions with dynamic options`);
+            this.logger.log(`✅ Loaded ${enrichedQuestions.length} questions from Supabase`);
             return enrichedQuestions;
+        } catch (error) {
+            this.logger.error('❌ Failed to load quiz structure from Supabase:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Load quiz structure from PROA dynamic endpoint (NEW - with fallback)
+     */
+    async loadQuizStructure() {
+        try {
+            this.logger.info('📥 Loading quiz structure from PROA dynamic endpoint...');
+            
+            // Get user type from sessionStorage (set after login)
+            const userType = sessionStorage.getItem('user-role') || 'all';
+            this.logger.log(`🎯 User type: ${userType}`);
+            
+            // 🎯 NEW: Try dynamic endpoint first
+            const dynamicUrl = `${this.PROA_URL}/orientation/questions/dynamic?user_type=${userType}&count_per_dimension=2`;
+            this.logger.log(`🔗 Fetching: ${dynamicUrl}`);
+            
+            try {
+                const data = await this.fetchWithRetry(dynamicUrl);
+                
+                if (!data.success || !data.questions) {
+                    throw new Error('Invalid response from PROA /questions/dynamic');
+                }
+                
+                const questions = data.questions;
+                
+                // Format questions to match expected structure
+                const formattedQuestions = questions.map(q => ({
+                    code: q.question_code,
+                    text: q.question_text,
+                    type: q.question_type,
+                    dimension: q.dimension,
+                    difficulty: q.difficulty_level,
+                    options: this.getDefaultOptions(q.question_type)
+                }));
+                
+                this.logger.info(`✅ Loaded ${formattedQuestions.length} dynamic questions from PROA`);
+                this.logger.log(`📊 Coverage: ${JSON.stringify(data.dimension_coverage)}`);
+                
+                return formattedQuestions;
+                
+            } catch (dynamicError) {
+                this.logger.warn('⚠️ Failed to load from PROA dynamic endpoint, falling back to Supabase:', dynamicError?.message);
+                // Fallback vers Supabase
+                return this.loadQuizStructureFromSupabase();
+            }
+            
         } catch (error) {
             this.logger.error('❌ Failed to load quiz structure:', error);
             throw error;
@@ -187,7 +229,9 @@ class APIService {
      * Call PORA service for university/centre rankings
      */
     async callPoraService(type, payload) {
-        const endpoint = type === 'universities' ? 'universites' : 'centres';
+        // 🔧 Define endpoint outside try block so it's accessible in catch
+        const endpoint = type === 'universites' ? 'universites' : 'centres';
+        
         try {
             this.logger.log(`🏆 Calling PORA service (${endpoint}):`, payload);
             
@@ -205,7 +249,7 @@ class APIService {
         } catch (error) {
             this.logger.error(`❌ PORA call (${endpoint}) failed:`, error);
             // Return empty result instead of throwing to allow graceful degradation
-            return endpoint === 'universites' ? { universites: [] } : { centres: [] };
+            return { universites: [] };
         }
     }
 
@@ -481,10 +525,20 @@ class APIService {
     /**
      * Get cached results from localStorage
      */
-    getCachedResults(userId) {
+    getCachedResults(userId, answers = null) {
         try {
             const cached = localStorage.getItem(`proa-result-${userId}`);
-            return cached ? JSON.parse(cached) : null;
+            if (!cached) return null;
+
+            const parsed = JSON.parse(cached);
+            if (!answers) return parsed;
+
+            const fingerprint = this.buildAnswersFingerprint(answers);
+            if (parsed?.answers_fingerprint && parsed.answers_fingerprint === fingerprint) {
+                return parsed;
+            }
+
+            return null;
         } catch (error) {
             this.logger.warn('⚠️ Failed to get cached results:', error);
             return null;
@@ -496,14 +550,26 @@ class APIService {
      */
     cacheResults(userId, results) {
         try {
+            const fingerprint = this.buildAnswersFingerprint(results?.answers || {});
             localStorage.setItem(`proa-result-${userId}`, JSON.stringify({
                 ...results,
+                answers_fingerprint: fingerprint,
                 timestamp: Date.now()
             }));
             this.logger.log('💾 Results cached');
         } catch (error) {
             this.logger.warn('⚠️ Failed to cache results:', error);
         }
+    }
+
+    /**
+     * Build a stable fingerprint for answers to avoid stale cache reuse.
+     */
+    buildAnswersFingerprint(answers = {}) {
+        const entries = Object.entries(answers)
+            .map(([key, value]) => [String(key), value])
+            .sort((a, b) => a[0].localeCompare(b[0]));
+        return JSON.stringify(entries);
     }
 
     /**

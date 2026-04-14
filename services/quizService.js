@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Quiz Service Module
  * Handles quiz logic: loading, format mapping, response validation, scoring
  */
@@ -10,18 +10,6 @@ class QuizService {
             student: [],
             parent: []
         };
-        this.studentQuestionPriority = [
-            'q1',
-            'q2',
-            'q4',
-            'q9',
-            'q10',
-            'q11',
-            'q18',
-            'q19',
-            'q20',
-            'q21'
-        ];
         this.currentRole = null;
         this.currentStep = 0;
         this.selectedAnswers = {};
@@ -34,58 +22,38 @@ class QuizService {
      */
     async initialize(questions) {
         try {
-            this.logger.log('ðŸŽ¯ Initializing quiz service...');
+            this.logger.log('🎯 Initializing quiz service...');
+            
+            // Dédupliquer les questions par code pour éviter les doublons dans le quiz
+            const uniqueQuestions = [];
+            const seenCodes = new Set();
+            for (const q of questions) {
+                const code = q.code || q.question_code;
+                if (!seenCodes.has(code)) {
+                    seenCodes.add(code);
+                    uniqueQuestions.push(q);
+                } else {
+                    this.logger.warn(`Duplicate question code skipped during initialization: ${code}`);
+                }
+            }
             
             // Split questions by quiz_type field
-            const studentQuestions = questions.filter(q => q.quiz_type !== 'parent');
-            const parentQuestions = questions.filter(q => q.quiz_type === 'parent' || studentQuestions.some(sq => sq.code === q.code));
+            const studentQuestions = uniqueQuestions.filter(q => q.quiz_type !== 'parent');
+            const parentQuestions = uniqueQuestions.filter(q => q.quiz_type === 'parent');
             
-            this.questions.student = this.buildOptimizedStudentQuiz(studentQuestions).map(q => this.formatQuestion(q));
+            this.questions.student = studentQuestions.slice(0, 10).map(q => this.formatQuestion(q));
             this.questions.parent = parentQuestions.slice(0, 5).map(q => this.formatQuestion(q));
             
-            this.logger.log(`âœ… Quiz service ready: ${this.questions.student.length} student, ${this.questions.parent.length} parent questions`);
+            this.logger.log(`✅ Quiz service ready: ${this.questions.student.length} student, ${this.questions.parent.length} parent questions`);
             
             return {
                 student: this.questions.student,
                 parent: this.questions.parent
             };
         } catch (error) {
-            this.logger.error('âŒ Failed to initialize quiz:', error);
+            this.logger.error('❌ Failed to initialize quiz:', error);
             throw error;
         }
-    }
-
-    /**
-     * Build a short 10-question student quiz with stronger business/admin signal.
-     */
-    buildOptimizedStudentQuiz(questions) {
-        const questionsByCode = new Map(
-            questions.map(question => [
-                (question.code || question.question_code || '').toLowerCase(),
-                question
-            ])
-        );
-        const selected = [];
-        const seen = new Set();
-        for (const code of this.studentQuestionPriority) {
-            const question = questionsByCode.get(code);
-            if (question && !seen.has(code)) {
-                selected.push(question);
-                seen.add(code);
-            }
-        }
-        for (const question of questions) {
-            const code = (question.code || question.question_code || '').toLowerCase();
-            if (!seen.has(code) && selected.length < 10) {
-                selected.push(question);
-                seen.add(code);
-            }
-        }
-        this.logger.log(
-            'Optimized student quiz codes:',
-            selected.map(q => q.code || q.question_code)
-        );
-        return selected.slice(0, 10);
     }
 
     /**
@@ -128,10 +96,10 @@ class QuizService {
      */
     startQuiz(role) {
         if (!this.questions[role] || this.questions[role].length === 0) {
-            throw new Error(`âŒ No questions loaded for role: ${role}`);
+            throw new Error(`❌ No questions loaded for role: ${role}`);
         }
 
-        this.logger.log(`ðŸŽ® Starting ${role} quiz with ${this.questions[role].length} questions`);
+        this.logger.log(`🎮 Starting ${role} quiz with ${this.questions[role].length} questions`);
         
         this.currentRole = role;
         this.currentStep = 0;
@@ -177,7 +145,7 @@ class QuizService {
 
         // Store answer
         this.selectedAnswers[currentQuestion.code] = normalizedValue;
-        this.logger.log(`ðŸ“ Answer recorded: ${currentQuestion.code} = ${value}`);
+        this.logger.log(`📝 Answer recorded: ${currentQuestion.code} = ${value}`);
 
         // Update profile scores
         if (this.scores[normalizedValue] !== undefined) {
@@ -186,10 +154,10 @@ class QuizService {
 
         // Budget advice for parents
         if (normalizedValue === 'LOW') {
-            this.parentBudget = 'PrivilÃ©giez les UniversitÃ©s Publiques ou BTS.';
+            this.parentBudget = 'Privilégiez les Universités Publiques ou BTS.';
         }
         if (normalizedValue === 'HIGH') {
-            this.parentBudget = 'Les Grandes Ã‰coles de Commerce/IngÃ©nieurs sont accessibles.';
+            this.parentBudget = 'Les Grandes Écoles de Commerce/Ingénieurs sont accessibles.';
         }
 
         // Advance
@@ -220,7 +188,7 @@ class QuizService {
      * Reset quiz
      */
     reset() {
-        this.logger.log('ðŸ”„ Resetting quiz...');
+        this.logger.log('🔄 Resetting quiz...');
         this.currentRole = null;
         this.currentStep = 0;
         this.selectedAnswers = {};
@@ -231,18 +199,17 @@ class QuizService {
      * Validate responses before submission
      */
     validateResponses() {
-        const expectedCount = this.questions[this.currentRole]?.length;
+        const expectedKeys = [...new Set(this.questions[this.currentRole]?.map(q => q.code) || [])];
+        const expectedCount = expectedKeys.length;
         const actualCount = Object.keys(this.selectedAnswers).length;
 
-        this.logger.log('ðŸ” Validating responses...');
+        this.logger.log('🔍 Validating responses...');
         this.logger.log(`   Expected: ${expectedCount}, Actual: ${actualCount}`);
 
         if (actualCount !== expectedCount) {
-            const missing = this.questions[this.currentRole]
-                .map(q => q.code)
-                .filter(code => !this.selectedAnswers[code]);
+            const missing = expectedKeys.filter(code => this.selectedAnswers[code] === undefined);
             
-            this.logger.error(`âŒ Missing answers: ${missing.join(', ')}`);
+            this.logger.error(`❌ Missing answers: ${missing.join(', ')}`);
             return {
                 valid: false,
                 error: `Incomplete quiz: ${missing.length} questions missing`,
@@ -261,14 +228,14 @@ class QuizService {
             });
 
         if (invalidAnswers.length > 0) {
-            this.logger.error(`âŒ Invalid answer values:`, invalidAnswers);
+            this.logger.error(`❌ Invalid answer values:`, invalidAnswers);
             return {
                 valid: false,
                 error: `Invalid answer values for ${invalidAnswers.length} questions`
             };
         }
 
-        this.logger.log('âœ… All responses valid');
+        this.logger.log('✅ All responses valid');
         return { valid: true };
     }
 
@@ -281,7 +248,7 @@ class QuizService {
             throw new Error(validation.error);
         }
 
-        this.logger.log('ðŸ“Š Mapping responses to PROA format...');
+        this.logger.log('📊 Mapping responses to PROA format...');
 
         const proaResponses = {};
         
@@ -291,7 +258,7 @@ class QuizService {
             proaResponses[code.toLowerCase()] = value;
         }
 
-        this.logger.log('âœ… PROA format ready:', proaResponses);
+        this.logger.log('✅ PROA format ready:', proaResponses);
         
         return {
             user_id: this.getUserId(),
@@ -361,5 +328,3 @@ class QuizService {
 if (typeof window !== 'undefined') {
     window.QuizService = QuizService;
 }
-
-

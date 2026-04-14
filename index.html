@@ -46,14 +46,14 @@
         .game-header.active { display: block; }
         
         .level-badge {
-            background: var(--accent);
-            padding: 4px 12px;
+            background: linear-gradient(135deg, rgba(99,102,241,0.95), rgba(139,92,246,0.95));
+            padding: 8px 14px;
             border-radius: 20px;
-            font-size: 0.7rem;
+            font-size: 0.78rem;
             font-weight: 800;
-            text-transform: uppercase;
             margin-bottom: 8px;
             display: inline-block;
+            box-shadow: 0 12px 30px rgba(99,102,241,0.22);
         }
 
         .progress-track {
@@ -100,24 +100,69 @@
         .role-icon { font-size: 2.5rem; }
 
         /* Questions */
-        .question-text { font-size: 1.4rem; font-weight: 600; margin-bottom: 30px; line-height: 1.3; }
+        .question-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+            backdrop-filter: blur(14px);
+        }
+        .question-text { font-size: 1.45rem; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em; }
         
         .options-grid { display: grid; gap: 12px; }
         .option-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--glass);
-            padding: 18px;
-            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 16px;
+            border-radius: 14px;
             color: white;
             text-align: left;
             font-size: 1rem;
             cursor: pointer;
-            transition: 0.2s;
+            transition: 0.25s;
             position: relative;
             overflow: hidden;
+            animation: fadeUp 0.3s ease;
         }
-        .option-btn:hover { background: var(--glass); transform: translateY(-2px); }
-        .option-btn:active { background: var(--primary); border-color: var(--primary); }
+        .option-btn:hover {
+            background: rgba(99,102,241,0.15);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        .option-btn:active { transform: scale(0.99); }
+        .option-btn.selected {
+            background: linear-gradient(90deg, var(--primary), #8b5cf6);
+            border-color: transparent;
+            transform: scale(1.02);
+            box-shadow: 0 18px 35px rgba(99,102,241,0.3);
+        }
+        .option-emoji {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.08);
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .option-label {
+            font-weight: 600;
+            line-height: 1.35;
+        }
+        .option-btn.selected .option-emoji {
+            background: rgba(255,255,255,0.18);
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* Loader */
         #loaderSpinner {
@@ -172,6 +217,11 @@
             text-align: center;
             margin-top: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            animation: glow 2s infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+            to { box-shadow: 0 0 25px rgba(99,102,241,0.7); }
         }
         
         #recommendationsContainer {
@@ -210,6 +260,71 @@
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 🔥 NEW CLEAN RECOMMENDATION CARDS */
+        .rec-card.clean {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 14px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            transition: transform 0.2s;
+        }
+        .rec-card.clean:hover {
+            transform: translateY(-2px);
+            background: rgba(255,255,255,0.06);
+        }
+
+        .rec-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .rec-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag {
+            background: rgba(99,102,241,0.15);
+            color: var(--primary);
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        /* 🔥 MATCH BADGE */
+        .match-badge {
+            background: rgba(244,63,94,0.1);
+            color: var(--accent);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            border: 1px solid rgba(244,63,94,0.2);
+        }
+
+        /* 🔥 TOP FIELDS SECTION */
+        .top-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .top-field-tag {
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
         }
 
     </style>
@@ -279,12 +394,12 @@
 <script src="services/config.js"></script>
 
 <!-- Service Modules -->
-<script src="services/apiService.js"></script>
-<script src="services/quizService.js"></script>
-<script src="services/uiRenderer.js"></script>
+<script src="services/apiService.js?v=20260412"></script>
+<script src="services/quizService.js?v=20260412"></script>
+<script src="services/uiRenderer.js?v=20260412"></script>
 
 <!-- Main Application -->
-<script src="services/app.js"></script>
+<script src="services/app.js?v=20260412"></script>
 
 <!-- Feature Flags & Debug -->
 <script>

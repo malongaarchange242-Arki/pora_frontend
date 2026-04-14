@@ -14,15 +14,15 @@ const ENV = {
     // ============================================
     // ORIENTATION SERVICES
     // ============================================
-    PROA_SERVICE_URL: 'https://universearch-proa-service.onrender.com',
-    PORA_SERVICE_URL: 'https://universearch-pora-service.onrender.com',
+    PROA_SERVICE_URL: 'http://localhost:8000',
+    PORA_SERVICE_URL: 'http://localhost:8080',
 
     // ============================================
     // API SETTINGS
     // ============================================
-    API_TIMEOUT_MS: 30000,
-    API_RETRY_ATTEMPTS: 4,
-    API_RETRY_DELAY_MS: 1500,
+    API_TIMEOUT_MS: 10000,
+    API_RETRY_ATTEMPTS: 3,
+    API_RETRY_DELAY_MS: 1000,
 
     // ============================================
     // FEATURE FLAGS
