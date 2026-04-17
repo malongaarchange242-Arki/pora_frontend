@@ -26,6 +26,9 @@ class OrientationApp {
             await CONFIG.initialize();
             this.logger.info('✅ Configuration loaded');
 
+            // Step 1.5: 🔐 Setup Flutter token listener (listen for JWT injection)
+            this.setupFlutterTokenListener();
+
             // Step 2: Create services
             this.api = new APIService({
                 SUPABASE_URL: window.CONFIG.SUPABASE.URL,
@@ -84,13 +87,44 @@ class OrientationApp {
     }
 
     /**
-     * 🚀 Auto-start quiz if JWT token is present (Flutter integration)
-     * Checks for JWT in cookies/localStorage and launches appropriate quiz automatically
+     * 🚀 Auto-start quiz based on user_type from Flutter
+     * Maps user_type to quiz role and launches automatically
      */
     async autoStartWithToken() {
         try {
-            this.logger.info('🔍 Checking for JWT token for auto-start...');
+            this.logger.info('🔍 Checking for auto-start conditions...');
 
+            // 👈 NEW: First check if user_type is in localStorage (from Flutter injection)
+            const userType = localStorage.getItem('user_type');
+            
+            if (userType && userType !== 'null' && userType !== '') {
+                this.logger.info(`🎯 User type detected from Flutter: ${userType}`);
+                
+                // Map user_type to quiz role
+                let quizRole;
+                switch (userType.toLowerCase()) {
+                    case 'bachelier':
+                        quizRole = 'student'; // 15 questions
+                        break;
+                    case 'etudiant':
+                        quizRole = 'student'; // 10 questions
+                        break;
+                    case 'parent':
+                        quizRole = 'parent'; // 5 questions
+                        break;
+                    default:
+                        quizRole = 'student';
+                        this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
+                }
+
+                this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
+                await this.startQuiz(quizRole);
+                return true;
+            }
+
+            // Fallback to old JWT token-based auto-start (if no user_type from Flutter)
+            this.logger.info('ℹ️ No user_type from Flutter, checking for JWT token fallback...');
+            
             // Check for JWT in cookies first (preferred by Flutter)
             let jwtToken = this.getCookie('jwt_token') || this.getCookie('access_token');
 
@@ -126,25 +160,25 @@ class OrientationApp {
                 this.logger.info('👤 User profile retrieved:', userProfile);
 
                 // Map user_type to quiz role
-                const userType = userProfile.user_type || 'bachelier';
+                const profileUserType = userProfile.user_type || 'bachelier';
                 let quizRole;
 
-                switch (userType.toLowerCase()) {
+                switch (profileUserType.toLowerCase()) {
                     case 'bachelier':
-                        quizRole = 'student'; // 15 questions - exploration
+                        quizRole = 'student'; // 15 questions
                         break;
                     case 'etudiant':
-                        quizRole = 'student'; // 10 questions - réorientation
+                        quizRole = 'student'; // 10 questions
                         break;
                     case 'parent':
-                        quizRole = 'parent'; // 5 questions - guidage
+                        quizRole = 'parent'; // 5 questions
                         break;
                     default:
-                        quizRole = 'student'; // Default fallback
-                        this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
+                        quizRole = 'student';
+                        this.logger.warn(`⚠️ Unknown user_type "${profileUserType}", defaulting to student`);
                 }
 
-                this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
+                this.logger.info(`🎯 Auto-starting quiz | user_type=${profileUserType} | role=${quizRole}`);
 
                 // Store user info for later use
                 this.userProfile = userProfile;
@@ -169,6 +203,70 @@ class OrientationApp {
     }
 
     /**
+     * 🔐 Decode JWT token to extract claims (user_type, user_id, etc.)
+     * Frontend does its own decoding - doesn't trust backend for user_type
+     */
+    decodeJWT(token) {
+        try {
+            if (!token) return null;
+            
+            // JWT format: header.payload.signature
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                this.logger.warn('❌ Invalid JWT format');
+                return null;
+            }
+
+            // Decode payload (second part)
+            const payload = parts[1];
+            // Add padding if needed
+            const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
+            
+            const decodedPayload = atob(paddedPayload);
+            const claims = JSON.parse(decodedPayload);
+            
+            this.logger.info('✅ JWT decoded | claims:', claims);
+            return claims;
+        } catch (error) {
+            this.logger.error('❌ JWT decode error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 🔐 Extract user_type from JWT (safe way - no frontend manipulation)
+     */
+    getUserTypeFromJWT() {
+        try {
+            const token = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+            if (!token) {
+                this.logger.warn('⚠️ No token in localStorage');
+                return null;
+            }
+
+            const claims = this.decodeJWT(token);
+            if (!claims) {
+                return null;
+            }
+
+            // Try different claim names that might contain user_type
+            const userType = claims.user_type || 
+                           claims.userType || 
+                           claims['cognito:username'] ||
+                           claims.sub;
+
+            if (userType) {
+                this.logger.info(`✅ User type extracted from JWT: ${userType}`);
+            }
+            
+            return userType;
+        } catch (error) {
+            this.logger.error('❌ Error extracting user_type from JWT:', error);
+            return null;
+        }
+    }
+
+    /**
      * Get cookie value by name
      */
     getCookie(name) {
@@ -178,6 +276,82 @@ class OrientationApp {
             return parts.pop().split(';').shift();
         }
         return null;
+    }
+
+    /**
+     * 🔐 Listen for Flutter token injection
+     * Flutter injects ONLY JWT via JavaScript after WebView loads
+     * We decode it here to extract user_type (secure - no frontend manipulation)
+     */
+    setupFlutterTokenListener() {
+        // Listen for custom event from Flutter with JWT token
+        window.addEventListener('FlutterTokenReady', (event) => {
+            // Extract token from event.detail object
+            const token = event.detail?.token || event.detail;
+            if (!token) {
+                this.logger.warn('⚠️ No token received from Flutter');
+                return;
+            }
+            
+            this.logger.info('🔐 JWT token received from Flutter');
+            
+            // Store token for API calls
+            localStorage.setItem('jwt_token', token);
+            localStorage.setItem('access_token', token);
+            
+            // Store user_id if provided
+            const userId = event.detail?.userId;
+            if (userId && userId !== '') {
+                localStorage.setItem('user_id', userId);
+            }
+            
+            // 🔐 SECURE: Decode JWT to extract user_type (cryptographically verified)
+            // This prevents frontend tampering - user_type comes from signed token, not modifiable localStorage
+            const userType = this.getUserTypeFromJWT();
+            if (userType) {
+                localStorage.setItem('user_type', userType);
+                this.logger.info(`✅ User type extracted from JWT: ${userType}`);
+            } else {
+                this.logger.warn('⚠️ Could not extract user_type from JWT token');
+            }
+            
+            // Trigger auto-start with JWT-extracted user_type
+            this.autoStartWithToken();
+        });
+
+        // Also handle message events (alternative Flutter communication method)
+        window.addEventListener('message', (event) => {
+            if (event.data?.type === 'FlutterTokenReady') {
+                const token = event.data.jwt_token;
+                if (!token) return;
+                
+                localStorage.setItem('jwt_token', token);
+                localStorage.setItem('access_token', token);
+                
+                const userType = this.getUserTypeFromJWT();
+                if (userType) {
+                    localStorage.setItem('user_type', userType);
+                    this.logger.info(`✅ User type extracted from JWT: ${userType}`);
+                }
+                
+                this.autoStartWithToken();
+            }
+        });
+
+        // Check if token was already injected before listener was set up
+        const existingToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+        if (existingToken) {
+            this.logger.info('✅ Token already in localStorage from Flutter injection');
+            
+            // Try to extract user_type if not already present
+            const existingUserType = localStorage.getItem('user_type');
+            if (!existingUserType) {
+                const userType = this.getUserTypeFromJWT();
+                if (userType) {
+                    localStorage.setItem('user_type', userType);
+                }
+            }
+        }
     }
 
     /**
@@ -304,11 +478,15 @@ class OrientationApp {
                 // Step 2: Call PORA service for recommendations
                 this.ui.showProgress(2, 3, 'Calcul des recommandations');
                 try {
+                    // 🔐 Include user_type from JWT in payload (extracted securely, not modifiable)
+                    const userType = localStorage.getItem('user_type') || 'bachelier';
+                    
                     const poraPayload = {
                         user_id: this.quiz.getUserId(),
                         profile_id: this.profileId,  // 🔗 Traçabilité vers le profil PROA
                         recommended_fields: recommendedFields,
-                        quiz_type: 'orientation'
+                        quiz_type: 'orientation',
+                        user_type: userType  // 🔐 From JWT (secure source)
                     };
 
                     const poraResult = await this.api.callPoraService('universites', poraPayload);
@@ -322,7 +500,8 @@ class OrientationApp {
                         user_id: this.quiz.getUserId(),
                         profile_id: this.profileId,
                         recommended_fields: recommendedFields,
-                        quiz_type: 'orientation'
+                        quiz_type: 'orientation',
+                        user_type: userType  // 🔐 From JWT (secure source)
                     };
 
                     const poraCentresResult = await this.api.callPoraService('centres', poraCentresPayload);

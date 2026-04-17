@@ -27,6 +27,17 @@ class APIService {
     }
 
     /**
+     * 🔐 Get JWT token from localStorage (injected by Flutter)
+     */
+    getAuthToken() {
+        const token = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+        if (token) {
+            this.logger.log('🔐 Using JWT token from localStorage');
+        }
+        return token;
+    }
+
+    /**
      * Fetch with timeout and retry logic
      */
     async fetchWithRetry(url, options = {}) {
@@ -104,8 +115,8 @@ class APIService {
         try {
             this.logger.info('📥 Loading quiz structure from PROA dynamic endpoint...');
             
-            // Get user type from sessionStorage (set after login)
-            const userType = sessionStorage.getItem('user-role') || 'all';
+            // Get user type from localStorage (injected by Flutter or set by welcome screen)
+            const userType = localStorage.getItem('user_type') || localStorage.getItem('user-role') || 'all';
             this.logger.log(`🎯 User type: ${userType}`);
             
             // 🎯 NEW: Try dynamic endpoint first
@@ -208,11 +219,17 @@ class APIService {
         try {
             this.logger.log('🔥 Calling PROA service:', payload);
             
+            const headers = { 'Content-Type': 'application/json' };
+            const token = this.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
             const result = await this.fetchWithRetry(
                 `${this.PROA_URL}/orientation/compute`,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 }
             );
@@ -235,11 +252,17 @@ class APIService {
         try {
             this.logger.log(`🏆 Calling PORA service (${endpoint}):`, payload);
             
+            const headers = { 'Content-Type': 'application/json' };
+            const token = this.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
             const result = await this.fetchWithRetry(
                 `${this.PORA_URL}/recommendations/${endpoint}`,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload)
                 }
             );
