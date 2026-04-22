@@ -40,20 +40,33 @@ class APIService {
     /**
      * Fetch with timeout and retry logic
      */
-    async fetchWithRetry(url, options = {}) {
+    async fetchWithRetry(url, options = {}, requestConfig = {}) {
         let lastError;
+        const retryAttempts = requestConfig.retryAttempts || this.RETRY_ATTEMPTS;
+        const retryDelayMs = requestConfig.retryDelayMs || this.RETRY_DELAY_MS;
+        const timeoutMs = requestConfig.timeoutMs || this.TIMEOUT_MS;
+        const requestLabel = requestConfig.label || 'request';
         
-        for (let attempt = 1; attempt <= this.RETRY_ATTEMPTS; attempt++) {
+        // 🔐 Add JWT token to headers if available
+        const headers = options.headers || {};
+        const token = this.getAuthToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        for (let attempt = 1; attempt <= retryAttempts; attempt++) {
+            let timeoutId;
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+                timeoutId = setTimeout(() => {
+                    controller.abort(`Request timeout after ${timeoutMs}ms`);
+                }, timeoutMs);
                 
                 const response = await fetch(url, {
                     ...options,
+                    headers,
                     signal: controller.signal
                 });
-                
-                clearTimeout(timeout);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
@@ -61,17 +74,30 @@ class APIService {
                 
                 return await response.json();
             } catch (error) {
-                lastError = error;
-                this.logger.warn(`🔄 Attempt ${attempt}/${this.RETRY_ATTEMPTS} failed:`, error.message);
+                lastError = this.normalizeFetchError(error, timeoutMs, requestLabel);
+                this.logger.warn(`🔄 Attempt ${attempt}/${retryAttempts} failed:`, lastError.message);
                 
-                if (attempt < this.RETRY_ATTEMPTS) {
-                    const delay = this.RETRY_DELAY_MS * Math.pow(2, attempt - 1); // Exponential backoff
+                if (attempt < retryAttempts) {
+                    const delay = retryDelayMs * Math.pow(2, attempt - 1); // Exponential backoff
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
+            } finally {
+                clearTimeout(timeoutId);
             }
         }
         
-        throw new Error(`Failed after ${this.RETRY_ATTEMPTS} attempts: ${lastError?.message}`);
+        throw new Error(`Failed after ${retryAttempts} attempts: ${lastError?.message}`);
+    }
+
+    normalizeFetchError(error, timeoutMs, requestLabel) {
+        const message = String(error?.message || error || '').trim();
+        const isAbort = error?.name === 'AbortError' || message.toLowerCase().includes('aborted');
+
+        if (isAbort) {
+            return new Error(`${requestLabel} timed out after ${timeoutMs}ms`);
+        }
+
+        return error instanceof Error ? error : new Error(message || `Unknown ${requestLabel} error`);
     }
 
     /**
@@ -98,7 +124,10 @@ class APIService {
             if (oError) throw oError;
             
             // Merge options into questions
-            const enrichedQuestions = this.mergeOptionsIntoQuestions(questions, options);
+            const enrichedQuestions = this.dedupeQuestionsByCode(
+                this.mergeOptionsIntoQuestions(questions, options),
+                'Supabase fallback quiz structure'
+            );
             
             this.logger.log(`✅ Loaded ${enrichedQuestions.length} questions from Supabase`);
             return enrichedQuestions;
@@ -115,8 +144,8 @@ class APIService {
         try {
             this.logger.info('📥 Loading quiz structure from PROA dynamic endpoint...');
             
-            // Get user type from localStorage (injected by Flutter or set by welcome screen)
-            const userType = localStorage.getItem('user_type') || localStorage.getItem('user-role') || 'all';
+            // Get user type from sessionStorage (set after login)
+            const userType = sessionStorage.getItem('user-role') || 'all';
             this.logger.log(`🎯 User type: ${userType}`);
             
             // 🎯 NEW: Try dynamic endpoint first
@@ -124,7 +153,9 @@ class APIService {
             this.logger.log(`🔗 Fetching: ${dynamicUrl}`);
             
             try {
-                const data = await this.fetchWithRetry(dynamicUrl);
+                const data = await this.fetchWithRetry(dynamicUrl, {}, {
+                    label: 'dynamic quiz fetch'
+                });
                 
                 if (!data.success || !data.questions) {
                     throw new Error('Invalid response from PROA /questions/dynamic');
@@ -133,18 +164,24 @@ class APIService {
                 const questions = data.questions;
                 
                 // Format questions to match expected structure
-                const formattedQuestions = questions.map(q => ({
+                const formattedQuestions = this.dedupeQuestionsByCode(questions.map(q => ({
                     code: q.question_code,
                     text: q.question_text,
                     type: q.question_type,
                     dimension: q.dimension,
-                    difficulty: q.difficulty_level,
-                    options: this.getDefaultOptions(q.question_type)
-                }));
+                    difficulty: q.difficulty,
+                    options: this.normalizeQuestionOptions(
+                        q.options || this.getDefaultOptions(q.question_type),
+                        q.question_type
+                    )
+                })), 'PROA dynamic quiz structure');
+                data.dimension_coverage = data.dimension_coverage || this.buildDimensionCoverage(formattedQuestions);
+                data.coverage = typeof data.coverage === 'number'
+                    ? data.coverage
+                    : (formattedQuestions.length > 0 ? 1 : 0);
                 
                 this.logger.info(`✅ Loaded ${formattedQuestions.length} dynamic questions from PROA`);
                 this.logger.log(`📊 Coverage: ${JSON.stringify(data.dimension_coverage)}`);
-                
                 return formattedQuestions;
                 
             } catch (dynamicError) {
@@ -182,10 +219,71 @@ class APIService {
             code: q.question_code,
             text: q.question_text,
             type: q.question_type,
-            options: (optionsByQuestion[q.id] || this.getDefaultOptions(q.question_type))
+            options: this.normalizeQuestionOptions(
+                (optionsByQuestion[q.id] || this.getDefaultOptions(q.question_type))
                 .sort((a, b) => (a.order || 0) - (b.order || 0))
-                .map(({ order, ...option }) => option)
+                .map(({ order, ...option }) => option),
+                q.question_type
+            )
         }));
+    }
+
+    normalizeQuestionOptions(options = [], questionType = 'choice') {
+        return (options || []).map(option => {
+            const rawValue = option?.value ?? option?.option_value ?? option?.v ?? option;
+            const text = option?.text ?? option?.option_text ?? option?.label ?? String(rawValue);
+
+            return {
+                ...option,
+                text,
+                value: this.normalizeQuestionOptionValue(rawValue, questionType)
+            };
+        });
+    }
+
+    normalizeQuestionOptionValue(value, questionType) {
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+
+            if (['likert', 'boolean', 'choice', 'single_choice', 'scale'].includes(questionType) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+                return Number(trimmed);
+            }
+
+            return trimmed;
+        }
+
+        return value;
+    }
+
+    dedupeQuestionsByCode(questions = [], source = 'quiz structure') {
+        const uniqueQuestions = [];
+        const seenCodes = new Set();
+
+        questions.forEach(question => {
+            const code = String(question?.code || question?.question_code || '').trim().toLowerCase();
+            if (!code) {
+                uniqueQuestions.push(question);
+                return;
+            }
+
+            if (seenCodes.has(code)) {
+                this.logger.warn(`âš ï¸ Duplicate question code filtered from ${source}: ${code}`);
+                return;
+            }
+
+            seenCodes.add(code);
+            uniqueQuestions.push(question);
+        });
+
+        return uniqueQuestions;
+    }
+
+    buildDimensionCoverage(questions = []) {
+        return questions.reduce((coverage, question) => {
+            const dimension = question?.dimension || 'general';
+            coverage[dimension] = (coverage[dimension] || 0) + 1;
+            return coverage;
+        }, {});
     }
 
     /**
@@ -219,18 +317,15 @@ class APIService {
         try {
             this.logger.log('🔥 Calling PROA service:', payload);
             
-            const headers = { 'Content-Type': 'application/json' };
-            const token = this.getAuthToken();
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            
             const result = await this.fetchWithRetry(
                 `${this.PROA_URL}/orientation/compute`,
                 {
                     method: 'POST',
-                    headers,
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
+                },
+                {
+                    label: 'PROA compute'
                 }
             );
             
@@ -252,18 +347,17 @@ class APIService {
         try {
             this.logger.log(`🏆 Calling PORA service (${endpoint}):`, payload);
             
-            const headers = { 'Content-Type': 'application/json' };
-            const token = this.getAuthToken();
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            
             const result = await this.fetchWithRetry(
                 `${this.PORA_URL}/recommendations/${endpoint}`,
                 {
                     method: 'POST',
-                    headers,
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
+                },
+                {
+                    label: `PORA ${endpoint}`,
+                    timeoutMs: Math.max(this.TIMEOUT_MS * 2, 20000),
+                    retryAttempts: Math.max(2, this.RETRY_ATTEMPTS - 1),
                 }
             );
             
@@ -272,7 +366,9 @@ class APIService {
         } catch (error) {
             this.logger.error(`❌ PORA call (${endpoint}) failed:`, error);
             // Return empty result instead of throwing to allow graceful degradation
-            return { universites: [] };
+            return endpoint === 'centres'
+                ? { centres: [], centreFilieres: [] }
+                : { universites: [] };
         }
     }
 
@@ -322,6 +418,232 @@ class APIService {
             this.logger.error('❌ Failed to fetch centre details:', error);
             return [];
         }
+    }
+
+    async strictFilterPoraRecommendations(type, recommendations = [], recommendedFields = []) {
+        if (!Array.isArray(recommendations) || recommendations.length === 0) {
+            return [];
+        }
+
+        if (!this.supabase) {
+            this.logger.warn(`⚠️ Supabase unavailable: strict filtering skipped for ${type}`);
+            return [];
+        }
+
+        const uniqueRecommendedFields = this.getUniqueRecommendedFields(recommendedFields);
+        if (uniqueRecommendedFields.length === 0) {
+            this.logger.warn(`⚠️ No recommended fields provided for strict filtering (${type})`);
+            return [];
+        }
+
+        const entityIds = this.extractRecommendationIds(recommendations, type);
+        if (entityIds.length === 0) {
+            this.logger.warn(`⚠️ No candidate ids found for strict filtering (${type})`);
+            return [];
+        }
+
+        const filieresByEntity = type === 'universites'
+            ? await this.fetchUniversityFilieresByIds(entityIds)
+            : await this.fetchCentreFilieresByIds(entityIds);
+
+        const enriched = recommendations
+            .map(item => this.enrichStrictRecommendationItem(item, type, uniqueRecommendedFields, filieresByEntity))
+            .filter(item => item && item.matching_fields_count > 0)
+            .sort((a, b) => {
+                const scoreDelta = (b.matching_fields_count || 0) - (a.matching_fields_count || 0);
+                if (scoreDelta !== 0) return scoreDelta;
+                return (b.score ?? b.pora_score ?? 0) - (a.score ?? a.pora_score ?? 0);
+            });
+
+        this.logger.log(`✅ Strictly filtered ${type}: ${enriched.length}/${recommendations.length} kept`);
+        return enriched;
+    }
+
+    extractRecommendationIds(recommendations = [], type = 'universites') {
+        const idKeys = type === 'universites'
+            ? ['target_id', 'universite_id', 'id']
+            : ['target_id', 'centre_formation_id', 'id'];
+
+        const ids = recommendations
+            .map(item => {
+                for (const key of idKeys) {
+                    const value = item?.[key];
+                    if (value !== undefined && value !== null && value !== '') {
+                        return value;
+                    }
+                }
+                return null;
+            })
+            .filter(value => value !== null);
+
+        return [...new Set(ids)];
+    }
+
+    async fetchUniversityFilieresByIds(universityIds = []) {
+        try {
+            if (!universityIds.length) return {};
+
+            const { data, error } = await this.supabase
+                .from('universite_filieres')
+                .select(`
+                    universite_id,
+                    filieres(id, nom, description)
+                `)
+                .in('universite_id', universityIds);
+
+            if (error) throw error;
+
+            return (data || []).reduce((acc, rel) => {
+                const entityId = rel.universite_id;
+                const fieldName = rel.filieres?.nom;
+                if (!entityId || !fieldName) return acc;
+                if (!acc[entityId]) acc[entityId] = [];
+                acc[entityId].push(fieldName);
+                return acc;
+            }, {});
+        } catch (error) {
+            this.logger.error('❌ Failed to fetch strict university filieres:', error);
+            return {};
+        }
+    }
+
+    async fetchCentreFilieresByIds(centreIds = []) {
+        try {
+            if (!centreIds.length) return {};
+
+            const { data, error } = await this.supabase
+                .from('centre_formation_filieres')
+                .select(`
+                    centre_formation_id,
+                    filiere:filieres_centre!centre_formation_filieres_filiere_id_fkey(
+                        id,
+                        nom,
+                        description
+                    )
+                `)
+                .in('centre_formation_id', centreIds);
+
+            if (error) throw error;
+
+            return (data || []).reduce((acc, rel) => {
+                const entityId = rel.centre_formation_id;
+                const fieldName = rel.filiere?.nom;
+                if (!entityId || !fieldName) return acc;
+                if (!acc[entityId]) acc[entityId] = [];
+                acc[entityId].push(fieldName);
+                return acc;
+            }, {});
+        } catch (error) {
+            this.logger.error('❌ Failed to fetch strict centre filieres:', error);
+            return {};
+        }
+    }
+
+    enrichStrictRecommendationItem(item, type, recommendedFields = [], filieresByEntity = {}) {
+        const entityId = this.extractRecommendationIds([item], type)[0];
+        if (entityId === undefined || entityId === null) {
+            return null;
+        }
+
+        const realFields = this.dedupeFieldNames(filieresByEntity[entityId] || []);
+        const matchedFields = this.findMatchedFields(realFields, recommendedFields);
+        const totalRecommendedFields = recommendedFields.length;
+
+        return {
+            ...item,
+            real_fields: realFields,
+            matched_fields: matchedFields,
+            other_fields: realFields.filter(field => !matchedFields.includes(field)),
+            matching_fields_count: matchedFields.length,
+            total_recommended_fields: totalRecommendedFields,
+            compatibility_score: totalRecommendedFields > 0 ? matchedFields.length / totalRecommendedFields : 0
+        };
+    }
+
+    getUniqueRecommendedFields(recommendedFields = []) {
+        const unique = [];
+        const seen = new Set();
+
+        recommendedFields.forEach(field => {
+            const trimmed = String(field || '').trim();
+            const canonical = this.toCanonicalFieldSignature(trimmed);
+            if (!trimmed || !canonical || seen.has(canonical)) return;
+            seen.add(canonical);
+            unique.push(trimmed);
+        });
+
+        return unique;
+    }
+
+    dedupeFieldNames(fields = []) {
+        const unique = [];
+        const seen = new Set();
+
+        fields.forEach(field => {
+            const trimmed = String(field || '').trim();
+            const canonical = this.toCanonicalFieldSignature(trimmed);
+            if (!trimmed || !canonical || seen.has(canonical)) return;
+            seen.add(canonical);
+            unique.push(trimmed);
+        });
+
+        return unique;
+    }
+
+    findMatchedFields(realFields = [], recommendedFields = []) {
+        const matched = [];
+        const seen = new Set();
+
+        realFields.forEach(realField => {
+            const match = this.matchRealFieldToRecommendation(realField, recommendedFields);
+            const canonical = this.toCanonicalFieldSignature(realField);
+            if (!match || !canonical || seen.has(canonical)) return;
+            seen.add(canonical);
+            matched.push(realField);
+        });
+
+        return matched;
+    }
+
+    matchRealFieldToRecommendation(realField, recommendedFields = []) {
+        const realNormalized = this.normalizeText(realField);
+        const realCanonical = this.toCanonicalFieldSignature(realField);
+        if (!realNormalized || !realCanonical) return false;
+
+        return recommendedFields.some(field => {
+            const keywords = this.getFieldKeywords(field);
+            const candidates = [field, ...keywords];
+
+            return candidates.some(candidate => {
+                const candidateNormalized = this.normalizeText(candidate);
+                const candidateCanonical = this.toCanonicalFieldSignature(candidate);
+
+                if (!candidateNormalized || !candidateCanonical) return false;
+                if (realCanonical === candidateCanonical) return true;
+                if (realNormalized.includes(candidateNormalized) || candidateNormalized.includes(realNormalized)) {
+                    return candidateNormalized.length >= 6 && realNormalized.length >= 6;
+                }
+
+                return false;
+            });
+        });
+    }
+
+    toCanonicalFieldSignature(text) {
+        const stopWords = new Set(['et', 'de', 'des', 'du', 'la', 'le', 'les', 'd', 'en', 'au', 'aux']);
+
+        return this.normalizeText(text)
+            .split(' ')
+            .map(token => token.trim())
+            .filter(token => token && !stopWords.has(token))
+            .map(token => {
+                if (token.length > 4 && token.endsWith('s')) {
+                    return token.slice(0, -1);
+                }
+                return token;
+            })
+            .sort()
+            .join(' ');
     }
 
     /**

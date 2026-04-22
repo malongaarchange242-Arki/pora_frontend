@@ -99,6 +99,42 @@
         .role-card:active { transform: scale(0.96); background: var(--glass); }
         .role-icon { font-size: 2.5rem; }
 
+        .bac-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .bac-card {
+            width: 100%;
+            display: block;
+            text-align: left;
+            color: var(--text);
+            font: inherit;
+        }
+
+        .bac-code {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .bac-desc {
+            font-size: 0.88rem;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+
+        .bac-note {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(244, 63, 94, 0.08);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            color: #fecdd3;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
         /* Questions */
         .question-card {
             background: rgba(255,255,255,0.05);
@@ -327,6 +363,55 @@
             box-shadow: 0 4px 12px rgba(99,102,241,0.3);
         }
 
+        .top-field-tag small {
+            opacity: 0.85;
+            font-weight: 600;
+        }
+
+        .rec-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .rec-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.07));
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(10px);
+        }
+
+        .rec-list-name {
+            color: #f8fafc;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .rec-list-meta {
+            flex-shrink: 0;
+            color: #fef3c7;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(244, 63, 94, 0.16);
+            border: 1px solid rgba(251, 191, 36, 0.28);
+        }
+
+        .rec-list-item.is-secondary .rec-list-meta {
+            color: #dbeafe;
+            background: rgba(59, 130, 246, 0.16);
+            border-color: rgba(96, 165, 250, 0.3);
+        }
+
     </style>
 </head>
 <body>
@@ -358,6 +443,45 @@
         </div>
     </div>
 
+    <div id="bacScreen" class="screen">
+        <h1 class="hero-title" style="font-size: 2rem; margin-top: 20px;">Quel est ton type de bac ?</h1>
+        <p class="hero-sub">Cette information est obligatoire pour renforcer la coherence academique de l'orientation.</p>
+
+        <div class="bac-grid">
+            <button class="role-card bac-card" type="button" data-bac-value="A">
+                <div class="bac-code">Bac A</div>
+                <div class="bac-desc">Filieres litteraires, droit, communication et sciences humaines.</div>
+            </button>
+
+            <button class="role-card bac-card" type="button" data-bac-value="C/D">
+                <div class="bac-code">Bac C/D</div>
+                <div class="bac-desc">Maths, informatique, ingenierie, medecine et autres filieres scientifiques.</div>
+            </button>
+
+            <button class="role-card bac-card" type="button" data-bac-value="E/F">
+                <div class="bac-code">Bac E/F</div>
+                <div class="bac-desc">Genie electrique, mecanique, industrie et techniques industrielles.</div>
+            </button>
+
+            <button class="role-card bac-card" type="button" data-bac-value="H">
+                <div class="bac-code">Bac H</div>
+                <div class="bac-desc">Informatique, telecoms, systemes, reseaux et data.</div>
+            </button>
+
+            <button class="role-card bac-card" type="button" data-bac-value="G/BG">
+                <div class="bac-code">Bac G/BG</div>
+                <div class="bac-desc">Comptabilite, management, commerce, ressources humaines et gestion.</div>
+            </button>
+
+            <button class="role-card bac-card" type="button" data-bac-value="P">
+                <div class="bac-code">Bac P</div>
+                <div class="bac-desc">Metiers pratiques, maintenance, BTP et filieres techniques professionnelles.</div>
+            </button>
+        </div>
+
+        <p class="bac-note">Selection obligatoire pour continuer. Sans type de bac, PROA bascule en mode de recommandations plus faibles.</p>
+    </div>
+
     <div id="quizScreen" class="screen">
         <h2 id="questionText" class="question-text">Question</h2>
         <div id="optionsGrid" class="options-grid"></div>
@@ -373,7 +497,7 @@
         <button id="retryButton" style="margin-bottom: 15px;">Réessayer</button>
 
         <div class="result-box">
-            <div style="font-size: 4rem; margin-bottom: 10px;">🏆</div>
+            <div style="font-size: 4rem; margin-bottom: 10px;"><i class="fas fa-rocket"></i></div>
             <p style="text-transform: uppercase; font-weight: 800; font-size: 0.8rem; opacity: 0.8;">Destinée Débloquée</p>
             <h2 id="finalTitle" style="font-size: 1.8rem; margin: 10px 0;">Filière</h2>
             <p id="finalDesc" style="font-size: 0.9rem; line-height: 1.5; opacity: 0.9;"></p>
@@ -394,12 +518,12 @@
 <script src="services/config.js"></script>
 
 <!-- Service Modules -->
-<script src="services/apiService.js?v=20260413"></script>
-<script src="services/quizService.js?v=20260413"></script>
-<script src="services/uiRenderer.js?v=20260413"></script>
+<script src="services/apiService.js?v=20260414"></script>
+<script src="services/quizService.js?v=20260414"></script>
+<script src="services/uiRenderer.js?v=20260414"></script>
 
 <!-- Main Application -->
-<script src="services/app.js?v=20260413"></script>
+<script src="services/app.js?v=20260414"></script>
 
 <!-- Feature Flags & Debug -->
 <script>
@@ -412,7 +536,7 @@
         console.log('  window.orientationApp.getState()');
         console.log('  window.CONFIG');
     });
-</script> 
+</script>
 
 </body>
 </html>

@@ -42,8 +42,8 @@ const CONFIG = {
     // ORIENTATION SERVICES (PROA & PORA)
     // ============================================
     SERVICES: {
-        PROA_URL: 'https://universearch-proa-service.onrender.com',        // Orientation computation
-        PORA_URL: 'https://universearch-pora-service.onrender.com',        // University ranking
+        PROA_URL: 'http://localhost:8000',        // Orientation computation
+        PORA_URL: 'http://localhost:8080',        // University ranking
         TIMEOUT_MS: 10000,                         // 10 second timeout
         RETRY_ATTEMPTS: 3,                         // Retry failed calls 3 times
         RETRY_DELAY_MS: 1000                       // 1 second initial delay (exponential)
@@ -87,33 +87,25 @@ const CONFIG = {
     // ============================================
     async initialize() {
         console.log('⚙️ Initializing configuration...');
-
+        
         // Step 1: Try to load from backend secure endpoint (production)
         // Only attempt if running on a proper server (not file:// or localhost)
         if (window.location.protocol !== 'file:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             try {
-                console.log('🔍 Attempting to load config from backend /api/config...');
                 const response = await fetch('/api/config', {
-                    method: 'GET',
                     headers: { 'Accept': 'application/json' },
-                    // Add timeout to prevent hanging
-                    signal: AbortSignal.timeout(3000) // 3 second timeout
+                    timeout: 2000
                 });
-
+                
                 if (response.ok) {
                     const secureConfig = await response.json();
                     Object.assign(this, secureConfig);
                     console.log('✅ Loaded secure config from backend');
                     return;
-                } else {
-                    console.log(`ℹ️ Backend config endpoint returned ${response.status} (expected in development)`);
                 }
             } catch (error) {
-                console.log('ℹ️ Backend config endpoint not available (expected in development):', error.message);
-                // This is expected in development - continue to fallback
+                console.debug('ℹ️ Backend config endpoint not available (expected in development)');
             }
-        } else {
-            console.log('🏠 Running on localhost/file:// - skipping backend config fetch');
         }
 
         // Step 2: Load from window.ENV (set by env.js)

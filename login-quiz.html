@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orienta - Connexion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #f43f5e;
+            --bg: #0f172a;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --glass: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: var(--card-bg);
+            border: 1px solid var(--glass);
+            padding: 40px;
+            border-radius: 30px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .login-header {
+            margin-bottom: 40px;
+        }
+
+        .app-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .app-title span {
+            color: var(--primary);
+        }
+
+        .app-subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 16px;
+            border: 1px solid var(--glass);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .form-input::placeholder {
+            color: #64748b;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-weight: 800;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 20px;
+        }
+
+        .submit-btn:active {
+            transform: scale(0.96);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: rgba(244, 63, 94, 0.1);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #ff7a8a;
+            padding: 12px;
+            border-radius: 12px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #86efac;
+            padding: 12px;
+            border-radius: 12px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #94a3b8;
+            margin-top: 16px;
+            font-size: 0.9rem;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 20px;
+            font-size: 0.85rem;
+            color: #93c5fd;
+            line-height: 1.5;
+        }
+
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-container">
+    <div class="login-box">
+        <div class="login-header">
+            <div class="icon">🎓</div>
+            <h1 class="app-title">Trouve ta <span>voie</span>.</h1>
+            <p class="app-subtitle">Service d'orientation personnalisé</p>
+        </div>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label" for="userId">
+                    <i class="fas fa-user"></i> Identifiant utilisateur
+                </label>
+                <input 
+                    type="text" 
+                    id="userId" 
+                    class="form-input" 
+                    placeholder="Saisissez votre ID utilisateur"
+                    required
+                    autocomplete="off"
+                >
+            </div>
+
+            <button type="submit" class="submit-btn">
+                <i class="fas fa-arrow-right"></i> Accéder au Quiz
+            </button>
+        </form>
+
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <span>Vérification en cours...</span>
+        </div>
+
+        <div class="info-box">
+            <i class="fas fa-info-circle"></i>
+            Entrez votre identifiant utilisateur pour commencer le quiz d'orientation.
+        </div>
+    </div>
+</div>
+
+<script>
+    // ===== CONFIGURATION SUPABASE =====
+    const SUPABASE_URL = 'https://wsdkieldyvehoqtukyis.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZGtpZWxkeXZlaG9xdHVreWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MTY0OTcsImV4cCI6MjA4NTA5MjQ5N30.Wjnj7p6MRPFqtpvXLvoiMCYl5PFbaHwvRE_JU-EJbyI';
+    
+    // Initialiser le client Supabase officiel
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function handleLogin(event) {
+        event.preventDefault();
+
+        const userId = document.getElementById('userId').value.trim();
+        const errorMsg = document.getElementById('errorMessage');
+        const successMsg = document.getElementById('successMessage');
+        const loading = document.getElementById('loading');
+        const submitBtn = document.querySelector('.submit-btn');
+
+        // Réinitialiser les messages
+        errorMsg.classList.remove('show');
+        successMsg.classList.remove('show');
+
+        if (!userId) {
+            showError('Veuillez saisir votre identifiant utilisateur.');
+            return;
+        }
+
+        // Afficher le loader
+        loading.classList.add('show');
+        submitBtn.disabled = true;
+
+        try {
+            console.log('🔍 Vérification de l\'utilisateur:', userId);
+
+            // Utiliser le client Supabase officiel (plus fiable)
+            const { data, error } = await supabaseClient
+                .from('utilisateurs')
+                .select('id, user_type')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                console.error('❌ Erreur Supabase:', error);
+                throw new Error(`Erreur serveur: ${error.message}`);
+            }
+
+            if (!data) {
+                showError('❌ Utilisateur non trouvé. Vérifiez votre identifiant.');
+                loading.classList.remove('show');
+                submitBtn.disabled = false;
+                return;
+            }
+
+            const user = data;
+            console.log('✅ Utilisateur trouvé:', user);
+
+            // Succès: stocker l'ID utilisateur et rediriger
+            sessionStorage.setItem('user-id', user.id);  // ✅ Utiliser 'user-id' (avec tiret) pour correspondre à quizService
+            sessionStorage.setItem('user-name', 'Utilisateur');
+            sessionStorage.setItem('user-role', user.user_type || 'bachelier');
+
+            showSuccess(`✅ Accès autorisé! Redirection en cours...`);
+
+            setTimeout(() => {
+                window.location.href = 'index.html';  // ✅ Redirection vers Quiz-Refactored
+            }, 1500);
+
+        } catch (error) {
+            console.error('❌ Erreur lors de la vérification:', error);
+            showError(`Erreur: ${error.message}`);
+            loading.classList.remove('show');
+            submitBtn.disabled = false;
+        }
+    }
+
+    function showError(message) {
+        const errorMsg = document.getElementById('errorMessage');
+        errorMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        errorMsg.classList.add('show');
+    }
+
+    function showSuccess(message) {
+        const successMsg = document.getElementById('successMessage');
+        successMsg.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+        successMsg.classList.add('show');
+    }
+
+    // Charger l'userId depuis sessionStorage si disponible
+    window.addEventListener('load', () => {
+        const storedUserId = sessionStorage.getItem('user-id');  // ✅ Utiliser 'user-id' (avec tiret)
+        if (storedUserId) {
+            document.getElementById('userId').value = storedUserId;
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -7,6 +7,7 @@ class UIRenderer {
     constructor(config = {}) {
         this.logger = config.logger || console;
         this.onQuestionAnswered = config.onQuestionAnswered || (() => {});
+        this.multiChoiceSelected = [];
         this.elements = this.findElements();
         this.enhanceLayout();
         this.elements = this.findElements();
@@ -15,6 +16,7 @@ class UIRenderer {
     findElements() {
         return {
             welcomeScreen: document.getElementById('welcomeScreen'),
+            bacScreen: document.getElementById('bacScreen'),
             quizScreen: document.getElementById('quizScreen'),
             resultScreen: document.getElementById('resultScreen'),
             gameHeader: document.getElementById('gameHeader'),
@@ -83,8 +85,27 @@ class UIRenderer {
         this.hideAllScreens();
         this.elements.welcomeScreen?.classList.add('active');
         if (this.elements.gameHeader) {
+            this.elements.gameHeader.classList.remove('active');
             this.elements.gameHeader.style.opacity = '1';
         }
+    }
+
+    showBacSelection(selectedBacType = null) {
+        this.logger.log('Showing bac selection screen');
+        this.hideAllScreens();
+        this.elements.bacScreen?.classList.add('active');
+
+        if (this.elements.gameHeader) {
+            this.elements.gameHeader.classList.remove('active');
+            this.elements.gameHeader.style.opacity = '1';
+        }
+
+        document.querySelectorAll('[data-bac-value]').forEach(button => {
+            const isSelected = selectedBacType && button.getAttribute('data-bac-value') === selectedBacType;
+            button.classList.toggle('selected', Boolean(isSelected));
+        });
+
+        this.scrollToTop();
     }
 
     showQuiz(role) {
@@ -111,7 +132,7 @@ class UIRenderer {
     }
 
     hideAllScreens() {
-        ['welcomeScreen', 'quizScreen', 'resultScreen'].forEach(id => {
+        ['welcomeScreen', 'bacScreen', 'quizScreen', 'resultScreen'].forEach(id => {
             this.elements[id]?.classList.remove('active');
         });
     }
@@ -122,7 +143,7 @@ class UIRenderer {
             return;
         }
 
-        this.logger.log(`Rendering question ${question.step}/${question.total}`);
+        this.logger.log(`Rendering question ${question.step}/${question.total} (Type: ${question.type})`);
 
         if (this.elements.questionText) {
             this.elements.questionText.innerText = question.q;
@@ -141,33 +162,196 @@ class UIRenderer {
         if (grid) {
             grid.innerHTML = '';
 
-            (question.o || []).forEach(option => {
-                const btn = document.createElement('button');
-                btn.className = 'option-btn';
-                btn.type = 'button';
-                btn.innerHTML = `
-                    <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
-                    <span class="option-label">${option.t}</span>
-                `;
-                btn.addEventListener('click', () => {
-                    this.selectOption(btn);
-                    this.onQuestionAnswered(option.v);
-                });
-                grid.appendChild(btn);
-            });
+            // 🔥 RENDER ACCORDING TO QUESTION TYPE
+            const questionType = question.type || 'likert';
+            switch (questionType) {
+                case 'likert':
+                    this.renderLikert(question, grid);
+                    this.hideMultiChoiceSubmit();
+                    break;
+                case 'single_choice':
+                case 'scenario':
+                    this.renderSingleChoice(question, grid);
+                    this.hideMultiChoiceSubmit();
+                    break;
+                case 'multi_choice':
+                    this.renderMultiChoice(question, grid);
+                    this.showMultiChoiceSubmit();
+                    break;
+                case 'scale':
+                    this.renderScale(question, grid);
+                    this.hideMultiChoiceSubmit();
+                    break;
+                default:
+                    this.renderLikert(question, grid);
+                    this.hideMultiChoiceSubmit();
+            }
         }
 
         this.updateProgress(question.step, question.total);
     }
 
-    selectOption(button) {
-        const grid = this.elements.optionsGrid;
+    // 🔥 LIKERT SCALE - Existing style
+    renderLikert(question, grid) {
+        (question.o || []).forEach(option => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.type = 'button';
+            btn.innerHTML = `
+                <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
+                <span class="option-label">${option.t}</span>
+            `;
+            btn.addEventListener('click', () => {
+                this.selectOption(btn);
+                this.onQuestionAnswered(option.v);
+            });
+            grid.appendChild(btn);
+        });
+    }
+
+    // 🔥 Method to handle option selection for Likert scale
+    selectOption(selectedBtn) {
+        // Remove selected class from all buttons in the same grid
+        const grid = selectedBtn.parentElement;
         if (grid) {
-            Array.from(grid.querySelectorAll('.option-btn')).forEach(btn => {
+            grid.querySelectorAll('.option-btn').forEach(btn => {
                 btn.classList.remove('selected');
             });
         }
-        button.classList.add('selected');
+        // Add selected class to the clicked button
+        selectedBtn.classList.add('selected');
+    }
+
+    // 🔥 SINGLE CHOICE - Radio buttons
+    renderSingleChoice(question, grid) {
+        const container = document.createElement('div');
+        container.className = 'single-choice-group';
+        
+        (question.o || []).forEach(option => {
+            const label = document.createElement('label');
+            label.className = 'radio-option';
+            label.innerHTML = `
+                <span class="radio-input"></span>
+                <span class="radio-label">${option.t}</span>
+            `;
+            label.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Deselect all
+                container.querySelectorAll('.radio-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                // Select this one
+                label.classList.add('selected');
+                this.onQuestionAnswered(option.v);
+            });
+            container.appendChild(label);
+        });
+        
+        grid.appendChild(container);
+    }
+
+    // 🔥 MULTI CHOICE - Checkboxes
+    renderMultiChoice(question, grid) {
+        const container = document.createElement('div');
+        container.className = 'multi-choice-group';
+        container.id = 'multiChoiceContainer';
+        
+        (question.o || []).forEach(option => {
+            const label = document.createElement('label');
+            label.className = 'checkbox-option';
+            label.dataset.value = option.v;
+            label.innerHTML = `
+                <span class="checkbox-input"></span>
+                <span class="checkbox-label">${option.t}</span>
+            `;
+            label.addEventListener('click', (e) => {
+                e.preventDefault();
+                label.classList.toggle('selected');
+                this.updateMultiChoiceValue(question);
+            });
+            container.appendChild(label);
+        });
+        
+        grid.appendChild(container);
+    }
+
+    updateMultiChoiceValue(question) {
+        const container = document.getElementById('multiChoiceContainer');
+        if (!container) return;
+        
+        const selected = Array.from(container.querySelectorAll('.checkbox-option.selected'))
+            .map(opt => opt.dataset.value);
+        
+        if (selected.length > 0) {
+            this.multiChoiceSelected = selected;
+            this.logger.log('Multi-choice selected:', selected);
+        }
+    }
+
+    showMultiChoiceSubmit() {
+        const submitBtn = document.getElementById('multiChoiceSubmit');
+        if (submitBtn) {
+            submitBtn.style.display = 'block';
+            submitBtn.querySelector('button').onclick = () => {
+                if (this.multiChoiceSelected && this.multiChoiceSelected.length > 0) {
+                    // Submit array as JSON string or comma-separated
+                    this.onQuestionAnswered(JSON.stringify(this.multiChoiceSelected));
+                    this.multiChoiceSelected = [];
+                }
+            };
+        }
+    }
+
+    hideMultiChoiceSubmit() {
+        const submitBtn = document.getElementById('multiChoiceSubmit');
+        if (submitBtn) submitBtn.style.display = 'none';
+        this.multiChoiceSelected = [];
+    }
+
+    // 🔥 SCALE/SLIDER - Range input
+    renderScale(question, grid) {
+        const container = document.createElement('div');
+        container.className = 'scale-group';
+        
+        // Get min/max from question metadata or defaults
+        const min = question.min ?? 0;
+        const max = question.max ?? 10;
+        const mid = Math.round((min + max) / 2);
+        
+        // Labels
+        const labels = document.createElement('div');
+        labels.className = 'scale-labels';
+        labels.innerHTML = `
+            <span>${min}</span>
+            <span>${mid}</span>
+            <span>${max}</span>
+        `;
+        
+        // Slider
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.className = 'scale-input';
+        input.min = min;
+        input.max = max;
+        input.value = mid;
+        
+        // Value display
+        const valueDisplay = document.createElement('div');
+        valueDisplay.className = 'scale-value';
+        valueDisplay.innerText = mid;
+        
+        input.addEventListener('input', (e) => {
+            const value = e.target.value;
+            valueDisplay.innerText = value;
+            // Auto-submit on change
+            this.onQuestionAnswered(Number(value));
+        });
+        
+        container.appendChild(labels);
+        container.appendChild(input);
+        container.appendChild(valueDisplay);
+        
+        grid.appendChild(container);
     }
 
     updateProgress(current, total) {
@@ -279,123 +463,109 @@ class UIRenderer {
         let html = '';
 
         // 🎯 AJOUT: Section des filières recommandées
-        if (recommendations.top_fields && recommendations.top_fields.length > 0) {
+        const topFields = recommendations.top_field_details || recommendations.top_fields || [];
+        if (topFields.length > 0) {
             html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🎯 Tes 5 meilleures filières</h3>';
             html += '<div class="top-fields">';
-            recommendations.top_fields.slice(0, 5).forEach(field => {
-                html += `<span class="top-field-tag">${field}</span>`;
+            topFields.slice(0, 5).forEach(field => {
+                const fieldName = typeof field === 'string'
+                    ? field
+                    : (field.field_name || field.name || 'Filiere');
+                const bacMatchScore = typeof field === 'object'
+                    ? Number(field.bac_match_score ?? field.bac_score)
+                    : NaN;
+                const bacBadge = Number.isFinite(bacMatchScore) && bacMatchScore >= 0.55
+                    ? ` <small>${Math.round(bacMatchScore * 100)}% bac</small>`
+                    : '';
+
+                html += `<span class="top-field-tag">${fieldName}${bacBadge}</span>`;
             });
             html += '</div>';
         }
 
-        if (recommendations.universities && recommendations.universities.length > 0) {
+        const recommendedFieldNames = topFields
+            .slice(0, 5)
+            .map(field => typeof field === 'string'
+                ? field
+                : (field.field_name || field.name || ''))
+            .filter(Boolean);
+
+        const compatibleUniversities = Array.isArray(recommendations.universities)
+            ? recommendations.universities
+                .map(uni => this.enrichRecommendationItem(uni, recommendedFieldNames))
+                .filter(Boolean)
+                .filter(uni => uni.matching_fields_count > 0)
+            : [];
+
+        if (compatibleUniversities.length > 0) {
+            const sortedUniversities = [...compatibleUniversities].sort((a, b) => {
+                const scoreDelta = (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0);
+                if (scoreDelta !== 0) return scoreDelta;
+                return (b.matching_fields_count ?? 0) - (a.matching_fields_count ?? 0);
+            });
+
             html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏫 Où étudier ça</h3>';
+            html += '<ul class="rec-list">';
 
-            recommendations.universities.forEach((uni, idx) => {
-                this.logger.log('🏫 Processing university:', uni); // DEBUG
-
-                const uniData = this.normalizeItem(uni);
-                this.logger.log('📊 Normalized university data:', uniData); // DEBUG
-                this.logger.log('📚 Parsed filieres:', uniData.filieres); // DEBUG
-
-                const primaryFields = uniData.matched.length > 0 ? uniData.matched : uniData.filieres.slice(0, 3);
-                
-                // 🎯 NEW: Get score and labels
-                const score = uni.score || uni.pora_score || 0.3;
-                const matchLabel = this.getMatchLabel(score);
-                const strategicBadge = this.getStrategicBadge(uniData.filieres.length + uniData.otherFields.length);
-                
-                // 🎯 NEW: Limit matched fields display (max 4 + "X autres")
-                let displayedMatched = [];
-                let extraCount = 0;
-                if (uniData.matched.length > 4) {
-                    displayedMatched = uniData.matched.slice(0, 4);
-                    extraCount = uniData.matched.length - 4;
-                } else {
-                    displayedMatched = uniData.matched;
-                }
-
+            sortedUniversities.forEach((uni) => {
+                const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
+                const matchCount = uni.matching_fields_count || 0;
+                const totalFields = uni.total_recommended_fields || recommendedFieldNames.length || 0;
                 html += `
-                    <div class="rec-card clean">
-                        <div class="rec-title">${uniData.name}</div>
-                        ${strategicBadge ? `<div class="strategic-badge">${strategicBadge}</div>` : ''}
-                        ${uniData.matched.length ? `
-                        <div class="match-badge">
-                          ${matchLabel}
-                          ${displayedMatched.length > 0 ? `<br><small>${displayedMatched.join(', ')}${extraCount > 0 ? ` +${extraCount} autres filières` : ''}</small>` : ''}
-                        </div>
-                        ` : ''}
-                        <div class="rec-tags">
-                            ${primaryFields.map(f => `<span class="tag ${uniData.matched.length ? 'highlight' : ''}">${f}</span>`).join('')}
-                        </div>
-                    </div>
+                    <li class="rec-list-item">
+                        <span class="rec-list-name">${uniName}</span>
+                        <span class="rec-list-meta">${matchCount}/${totalFields} filières</span>
+                    </li>
                 `;
             });
+
+            html += '</ul>';
+        } else if (recommendations.universities) {
+            // 🔴 AUCUNE UNIVERSITÉ NE CORRESPOND
+            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏫 Où étudier ça</h3>';
+            html += '<div style="text-align: center; opacity: 0.7; padding: 20px;">';
+            html += '<p style="margin: 0; color: #94a3b8;">Aucune université ne propose ces filières pour le moment.</p>';
+            html += '<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #64748b;">Consultez un conseiller d\'orientation pour explorer d\'autres options.</p>';
+            html += '</div>';
         }
 
-        if (recommendations.centres && recommendations.centres.length > 0) {
-            // 🔥 Count compatible centres
-            let compatibleCount = 0;
+        const compatibleCentres = Array.isArray(recommendations.centres)
+            ? recommendations.centres
+                .map(centre => this.enrichRecommendationItem(centre, recommendedFieldNames))
+                .filter(Boolean)
+                .filter(centre => centre.matching_fields_count > 0)
+            : [];
 
-            recommendations.centres.forEach((centre, idx) => {
-                const centreData = this.normalizeItem(centre);
-                if (centreData) compatibleCount++;
+        if (compatibleCentres.length > 0) {
+            const sortedCentres = [...compatibleCentres].sort((a, b) => {
+                const scoreDelta = (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0);
+                if (scoreDelta !== 0) return scoreDelta;
+                return (b.matching_fields_count ?? 0) - (a.matching_fields_count ?? 0);
             });
 
-            if (compatibleCount > 0) {
-                html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
+            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
+            html += '<ul class="rec-list">';
 
-                recommendations.centres.forEach((centre, idx) => {
-                    const centreData = this.normalizeItem(centre);
+            sortedCentres.forEach((centre) => {
+                const centreName = centre.target_name || centre.nom || centre.name || 'Inconnu';
+                const matchCount = centre.matching_fields_count || 0;
+                const totalFields = centre.total_recommended_fields || recommendedFieldNames.length || 0;
+                html += `
+                    <li class="rec-list-item is-secondary">
+                        <span class="rec-list-name">${centreName}</span>
+                        <span class="rec-list-meta">${matchCount}/${totalFields} filières</span>
+                    </li>
+                `;
+            });
 
-                    // 🔥 SKIP centres that don't have compatible filieres
-                    if (!centreData) {
-                        return;
-                    }
-
-                    const centreFieldsToShow = centreData.matched?.length > 0
-                        ? centreData.matched.slice(0, 2)
-                        : centreData.filieres.slice(0, 2);
-                    
-                    // 🎯 NEW: Get score and labels for centres
-                    const score = centre.score || centre.pora_score || 0.3;
-                    const matchLabel = this.getMatchLabel(score);
-                    const strategicBadge = this.getStrategicBadge(centreData.filieres.length + centreData.otherFields.length);
-                    
-                    // 🎯 NEW: Limit matched fields display (max 4 + "X autres")
-                    let displayedMatched = [];
-                    let extraCount = 0;
-                    if (centreData.matched?.length > 4) {
-                        displayedMatched = centreData.matched.slice(0, 4);
-                        extraCount = centreData.matched.length - 4;
-                    } else {
-                        displayedMatched = centreData.matched || [];
-                    }
-
-                    html += `
-                        <div class="rec-card clean">
-                            <div class="rec-title">${centreData.name}</div>
-                            ${strategicBadge ? `<div class="strategic-badge">${strategicBadge}</div>` : ''}
-                            ${centreData.matched?.length ? `
-                            <div class="match-badge">
-                              ${matchLabel}
-                              ${displayedMatched.length > 0 ? `<br><small>${displayedMatched.join(', ')}${extraCount > 0 ? ` +${extraCount} autres filières` : ''}</small>` : ''}
-                            </div>
-                            ` : ''}
-                            <div class="rec-tags">
-                                ${centreFieldsToShow.map(f => `<span class="tag ${centreData.matched?.length > 0 ? 'highlight' : ''}">${f}</span>`).join('')}
-                            </div>
-                        </div>
-                    `;
-                });
-            } else {
-                // 🔥 No compatible centres found
-                html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
-                html += '<div class="rec-card clean" style="text-align: center; opacity: 0.7;">';
-                html += '<p style="margin: 0; color: #94a3b8;">Aucune formation courte compatible trouvée pour ce profil.</p>';
-                html += '<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #64748b;">Les centres proposent principalement des formations techniques ou professionnelles.</p>';
-                html += '</div>';
-            }
+            html += '</ul>';
+        } else if (recommendations.centres) {
+            // 🔴 AUCUN CENTRE NE CORRESPOND
+            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
+            html += '<div style="text-align: center; opacity: 0.7; padding: 20px;">';
+            html += '<p style="margin: 0; color: #94a3b8;">Aucune formation courte ne propose ces filières pour le moment.</p>';
+            html += '<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #64748b;">Les centres se spécialisent souvent dans d\'autres domaines.</p>';
+            html += '</div>';
         }
 
         if (!html) {
@@ -403,6 +573,85 @@ class UIRenderer {
         }
 
         this.elements.recommendationsContainer.innerHTML = html;
+    }
+
+    enrichRecommendationItem(item, recommendedFields = []) {
+        if (!item) return null;
+
+        const normalizedRecommendedFields = recommendedFields
+            .map(field => this.normalizeFieldName(field))
+            .filter(Boolean);
+
+        const rawMatchedFields = Array.isArray(item.matched_fields)
+            ? item.matched_fields
+            : [];
+        const rawRealFields = Array.isArray(item.real_fields)
+            ? item.real_fields
+            : [];
+
+        const matchedFromData = [];
+        const matchedSet = new Set();
+
+        if (rawRealFields.length > 0 && normalizedRecommendedFields.length > 0) {
+            rawRealFields.forEach(field => {
+                const trimmedField = String(field || '').trim();
+                const normalizedRealField = this.normalizeFieldName(trimmedField);
+                if (!normalizedRealField || !normalizedRecommendedFields.includes(normalizedRealField)) {
+                    return;
+                }
+
+                if (!matchedSet.has(normalizedRealField)) {
+                    matchedSet.add(normalizedRealField);
+                    matchedFromData.push(trimmedField);
+                }
+            });
+        } else {
+            rawMatchedFields.forEach(field => {
+                const trimmedField = String(field || '').trim();
+                const normalizedMatchedField = this.normalizeFieldName(trimmedField);
+                if (!normalizedMatchedField || matchedSet.has(normalizedMatchedField)) {
+                    return;
+                }
+
+                matchedSet.add(normalizedMatchedField);
+                matchedFromData.push(trimmedField);
+            });
+        }
+
+        const uniqueMatchedFields = [];
+        const seenMatched = new Set();
+        matchedFromData.forEach(field => {
+            const normalized = this.normalizeFieldName(field);
+            if (!normalized || seenMatched.has(normalized)) return;
+            seenMatched.add(normalized);
+            uniqueMatchedFields.push(field);
+        });
+
+        const totalRecommendedFields = normalizedRecommendedFields.length
+            || Number(item.total_recommended_fields)
+            || 0;
+        const matchingFieldsCount = uniqueMatchedFields.length;
+        const compatibilityScore = totalRecommendedFields > 0
+            ? matchingFieldsCount / totalRecommendedFields
+            : (matchingFieldsCount > 0 ? 1 : 0);
+
+        return {
+            ...item,
+            matched_fields: uniqueMatchedFields,
+            matching_fields_count: matchingFieldsCount,
+            total_recommended_fields: totalRecommendedFields,
+            compatibility_score: compatibilityScore
+        };
+    }
+
+    normalizeFieldName(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 
     normalizeItem(item) {
@@ -506,8 +755,8 @@ class UIRenderer {
         const total = Number(question.total || 1);
         const ratio = total > 0 ? current / total : 0;
 
-        if (ratio <= 0.34) return 'Analyse de ton profil';
-        if (ratio <= 0.67) return 'Detection de tes forces';
+        if (ratio <= 0.4) return 'Analyse de ton profil';
+        if (ratio <= 0.8) return 'Detection de tes forces';
         return 'Projection de ton avenir';
     }
 }

@@ -13,8 +13,10 @@ class QuizService {
         this.currentRole = null;
         this.currentStep = 0;
         this.selectedAnswers = {};
+        this.responseMetadata = {};
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
         this.parentBudget = null;
+        this.bacType = this.loadStoredBacType();
     }
 
     /**
@@ -62,14 +64,55 @@ class QuizService {
     formatQuestion(dbQuestion) {
         const questionType = dbQuestion.type || dbQuestion.question_type;
 
+        // Handle different option formats from API
+        let options = [];
+        if (dbQuestion.options && Array.isArray(dbQuestion.options)) {
+            options = dbQuestion.options.map(opt => {
+                let optionValue;
+                let optionText;
+
+                // Handle string format like "@{label=Text; value=1}"
+                if (typeof opt === 'string' && opt.startsWith('@{') && opt.endsWith('}')) {
+                    const content = opt.slice(2, -1); // Remove @{ and }
+                    const parts = content.split(';').map(p => p.trim());
+                    const labelPart = parts.find(p => p.startsWith('label='));
+                    const valuePart = parts.find(p => p.startsWith('value='));
+                    optionText = labelPart ? labelPart.split('=')[1] : opt;
+                    optionValue = valuePart ? valuePart.split('=')[1] : opt;
+                }
+                // Handle object format with label/value
+                else if (typeof opt === 'object' && opt !== null && opt.label !== undefined) {
+                    optionText = opt.label || opt.text || `Option ${opt.value || options.length + 1}`;
+                    optionValue = opt.value || opt.option_value || options.length + 1;
+                }
+                // Handle object format with text/value
+                else if (typeof opt === 'object' && opt !== null && opt.text !== undefined) {
+                    optionText = opt.text || opt.label || `Option ${opt.value || options.length + 1}`;
+                    optionValue = opt.value || opt.option_value || options.length + 1;
+                }
+                // Handle simple string (for autocomplete type)
+                else if (typeof opt === 'string') {
+                    optionText = opt;
+                    optionValue = opt;
+                }
+                // Fallback
+                else {
+                    optionText = `Option ${options.length + 1}`;
+                    optionValue = options.length + 1;
+                }
+
+                return {
+                    t: optionText,
+                    v: this.normalizeOptionValue(optionValue, questionType)
+                };
+            });
+        }
+
         return {
             code: dbQuestion.code || dbQuestion.question_code,
             q: dbQuestion.text || dbQuestion.question_text,
             type: questionType,
-            o: (dbQuestion.options || []).map(opt => ({
-                t: opt.text || opt.option_text,
-                v: this.normalizeOptionValue(opt.value ?? opt.option_value, questionType)
-            }))
+            o: options
         };
     }
 
@@ -91,6 +134,150 @@ class QuizService {
         return value;
     }
 
+    normalizeBacType(value) {
+        const normalized = String(value || '')
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, '');
+
+        const aliases = {
+            A: 'A',
+            A1: 'A',
+            A2: 'A',
+            A3: 'A',
+            C: 'C/D',
+            D: 'C/D',
+            'C/D': 'C/D',
+            CD: 'C/D',
+            'D/C': 'C/D',
+            DC: 'C/D',
+            E: 'E/F',
+            F: 'E/F',
+            'E/F': 'E/F',
+            EF: 'E/F',
+            'F/E': 'E/F',
+            FE: 'E/F',
+            H: 'H',
+            G: 'G/BG',
+            BG: 'G/BG',
+            'G/BG': 'G/BG',
+            GBG: 'G/BG',
+            P: 'P'
+        };
+
+        return aliases[normalized] || null;
+    }
+
+    getBacStorageKey() {
+        return `orientation-bac-type:${this.getUserId()}`;
+    }
+
+    loadStoredBacType() {
+        try {
+            return this.normalizeBacType(sessionStorage.getItem(this.getBacStorageKey()));
+        } catch (error) {
+            this.logger.warn('Unable to load stored bac type:', error);
+            return null;
+        }
+    }
+
+    setBacType(value) {
+        const normalized = this.normalizeBacType(value);
+        if (!normalized) {
+            throw new Error(`Invalid bac type: ${value}`);
+        }
+
+        this.bacType = normalized;
+
+        try {
+            sessionStorage.setItem(this.getBacStorageKey(), normalized);
+        } catch (error) {
+            this.logger.warn('Unable to persist bac type:', error);
+        }
+
+        return this.bacType;
+    }
+
+    getBacType() {
+        return this.bacType;
+    }
+
+    hasBacType() {
+        return Boolean(this.bacType);
+    }
+
+    clearBacType() {
+        try {
+            sessionStorage.removeItem(this.getBacStorageKey());
+        } catch (error) {
+            this.logger.warn('Unable to clear stored bac type:', error);
+        }
+
+        this.bacType = null;
+    }
+
+    /**
+     * Convert option value to numeric score (1-4) for PROA API
+     * For choice/autocomplete questions, map based on option position
+     * For likert questions, use the value directly
+     */
+    convertToNumericScore(value, question) {
+        const normalizedValue = this.normalizeOptionValue(value, question.type);
+        value = normalizedValue;
+        console.log(`🔄 Converting value "${value}" for question type "${question.type}"`);
+
+        // For likert questions, value should already be numeric 1-4
+        if (question.type === 'likert') {
+            const numValue = Number(value);
+            if (Number.isFinite(numValue) && numValue >= 1 && numValue <= 4) {
+                console.log(`✅ Likert value ${value} -> ${numValue}`);
+                return numValue;
+            }
+            // If it's a string but should be numeric, try to map it
+            console.log(`⚠️  Likert value "${value}" is not numeric, treating as choice`);
+        }
+
+        // For choice/autocomplete questions, or likert with string values, find the option index and map to 1-4
+        if (question.type === 'choice' || question.type === 'autocomplete' || question.type === 'likert') {
+            const options = question.o || [];
+            console.log(`🔍 Looking for "${value}" in options:`, options);
+
+            const optionIndex = options.findIndex(opt => opt.v === value || opt.t === value);
+
+            if (optionIndex === -1) {
+                console.error(`❌ Option value "${value}" not found in options:`, options);
+                throw new Error(`Option value not found: ${value}`);
+            }
+
+            // Map option position to score 1-4
+            // If 2 options: position 0 = 1, position 1 = 4
+            // If 3 options: position 0 = 1, position 1 = 2, position 2 = 4
+            // If 4+ options: position 0 = 1, position 1 = 2, position 2 = 3, position 3+ = 4
+            const numOptions = options.length;
+            let score;
+            if (numOptions === 2) {
+                score = optionIndex === 0 ? 1 : 4;
+            } else if (numOptions === 3) {
+                score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 2 : 4);
+            } else {
+                score = Math.min(optionIndex + 1, 4);
+            }
+
+            console.log(`✅ Mapped option at index ${optionIndex} to score ${score}`);
+            return score;
+        }
+
+        // Fallback for unknown types
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 1 && numValue <= 4) {
+            console.log(`✅ Fallback: "${value}" -> ${numValue}`);
+            return numValue;
+        }
+
+        console.error(`❌ Cannot convert value "${value}" to numeric score`);
+        throw new Error(`Cannot convert value to numeric score: ${value}`);
+    }
+
     /**
      * Start quiz for a given role (student or parent)
      */
@@ -104,6 +291,7 @@ class QuizService {
         this.currentRole = role;
         this.currentStep = 0;
         this.selectedAnswers = {};
+        this.responseMetadata = {};
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
         this.parentBudget = null;
 
@@ -136,27 +324,41 @@ class QuizService {
      * Record answer and advance to next question
      */
     answerQuestion(value) {
+        console.log(`🎯 answerQuestion called with value: "${value}"`);
+
         const currentQuestion = this.getCurrentQuestion();
         if (!currentQuestion) {
             throw new Error('No current question');
         }
 
+        console.log(`📋 Current question:`, currentQuestion);
+
+        // Convert option value to numeric score for PROA API
+        const numericScore = this.convertToNumericScore(value, currentQuestion);
         const normalizedValue = this.normalizeOptionValue(value, currentQuestion.type);
+        const selectedOption = (currentQuestion.o || []).find(opt => opt.v === normalizedValue || opt.t === normalizedValue || opt.v === value || opt.t === value);
 
-        // Store answer
-        this.selectedAnswers[currentQuestion.code] = normalizedValue;
-        this.logger.log(`📝 Answer recorded: ${currentQuestion.code} = ${value}`);
+        // Store answer (keep original value for display, numeric score for API)
+        this.selectedAnswers[currentQuestion.code] = numericScore;
+        this.responseMetadata[currentQuestion.code] = {
+            raw_value: normalizedValue,
+            numeric_score: numericScore,
+            question_type: currentQuestion.type,
+            option_count: (currentQuestion.o || []).length,
+            selected_text: selectedOption?.t ?? String(value)
+        };
+        this.logger.log(`📝 Answer recorded: ${currentQuestion.code} = ${value} (score: ${numericScore})`);
 
-        // Update profile scores
-        if (this.scores[normalizedValue] !== undefined) {
-            this.scores[normalizedValue] += 2;
+        // Update profile scores for legacy compatibility
+        if (this.scores[numericScore] !== undefined) {
+            this.scores[numericScore] += 2;
         }
 
         // Budget advice for parents
-        if (normalizedValue === 'LOW') {
+        if (numericScore === 1) {  // LOW budget
             this.parentBudget = 'Privilégiez les Universités Publiques ou BTS.';
         }
-        if (normalizedValue === 'HIGH') {
+        if (numericScore === 4) {  // HIGH budget
             this.parentBudget = 'Les Grandes Écoles de Commerce/Ingénieurs sont accessibles.';
         }
 
@@ -184,6 +386,10 @@ class QuizService {
         return Math.round((this.currentStep / total) * 100);
     }
 
+    getTotalQuestions() {
+        return this.questions[this.currentRole]?.length || 0;
+    }
+
     /**
      * Reset quiz
      */
@@ -192,7 +398,9 @@ class QuizService {
         this.currentRole = null;
         this.currentStep = 0;
         this.selectedAnswers = {};
+        this.responseMetadata = {};
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
+        this.clearBacType();
     }
 
     /**
@@ -217,11 +425,10 @@ class QuizService {
             };
         }
 
-        // Validate all values are in range [1-4] for Likert questions
+        // Validate all values are in range [1-4] for all question types
         const invalidAnswers = Object.entries(this.selectedAnswers)
             .filter(([code, value]) => {
-                const question = this.questions[this.currentRole].find(q => q.code === code);
-                if (question?.type === 'likert' && (typeof value !== 'number' || value < 1 || value > 4)) {
+                if (typeof value !== 'number' || value < 1 || value > 4) {
                     return true;
                 }
                 return false;
@@ -243,6 +450,9 @@ class QuizService {
      * Map responses to PROA format
      */
     mapToProaFormat() {
+        console.log('📊 Mapping responses to PROA format...');
+        console.log('📋 Current selectedAnswers:', this.selectedAnswers);
+
         const validation = this.validateResponses();
         if (!validation.valid) {
             throw new Error(validation.error);
@@ -253,18 +463,39 @@ class QuizService {
         const proaResponses = {};
         
         for (const [code, value] of Object.entries(this.selectedAnswers)) {
-            // Keep values as-is (1, 2, 3, 4) - PROA expects these values
-            // Normalization happens server-side if needed
+            // Values are already converted to numeric scores 1-4
             proaResponses[code.toLowerCase()] = value;
+            console.log(`🔄 ${code} -> ${value} (type: ${typeof value})`);
         }
 
+        const responseMetadata = {};
+        for (const [code, metadata] of Object.entries(this.responseMetadata)) {
+            responseMetadata[code.toLowerCase()] = metadata;
+        }
+
+        if (this.currentRole === 'student') {
+            if (!this.bacType) {
+                throw new Error('Le type de bac est obligatoire pour ce quiz.');
+            }
+
+            responseMetadata.q_bac_type = {
+                raw_value: this.bacType,
+                selected_text: this.bacType,
+                question_type: 'required_bac_gate',
+                option_count: 6,
+                is_required: true
+            };
+        }
+
+        console.log('✅ PROA format ready:', proaResponses);
         this.logger.log('✅ PROA format ready:', proaResponses);
         
         return {
             user_id: this.getUserId(),
             quiz_version: this.currentRole === 'student' ? '1.0' : '1.0-parent',
             orientation_type: 'field',
-            responses: proaResponses
+            responses: proaResponses,
+            response_metadata: responseMetadata
         };
     }
 

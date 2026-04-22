@@ -12,6 +12,7 @@ class OrientationApp {
         this.ui = null;
         this.proaResult = null;
         this.poraResult = null;
+        this.pendingRole = null;
         this.initialized = false;
     }
 
@@ -25,9 +26,6 @@ class OrientationApp {
             // Step 1: Initialize configuration
             await CONFIG.initialize();
             this.logger.info('✅ Configuration loaded');
-
-            // Step 1.5: 🔐 Setup Flutter token listener (listen for JWT injection)
-            this.setupFlutterTokenListener();
 
             // Step 2: Create services
             this.api = new APIService({
@@ -92,39 +90,49 @@ class OrientationApp {
      */
     async autoStartWithToken() {
         try {
-            this.logger.info('🔍 Checking for auto-start conditions...');
+            this.logger.info('🔍 Checking for user_type for auto-start...');
 
             // 👈 NEW: First check if user_type is in localStorage (from Flutter injection)
             const userType = localStorage.getItem('user_type');
-            
-            if (userType && userType !== 'null' && userType !== '') {
-                this.logger.info(`🎯 User type detected from Flutter: ${userType}`);
-                
+            if (userType) {
                 // Map user_type to quiz role
                 let quizRole;
+
                 switch (userType.toLowerCase()) {
                     case 'bachelier':
-                        quizRole = 'student'; // 15 questions
+                        quizRole = 'student'; // 15 questions - exploration
                         break;
                     case 'etudiant':
-                        quizRole = 'student'; // 10 questions
+                        quizRole = 'student'; // 10 questions - réorientation
                         break;
                     case 'parent':
-                        quizRole = 'parent'; // 5 questions
+                        quizRole = 'parent'; // 5 questions - guidage
                         break;
                     default:
-                        quizRole = 'student';
+                        quizRole = 'student'; // Default fallback
                         this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
                 }
 
                 this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
+
+                // Store JWT token for API calls
+                const jwtToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+                const userId = localStorage.getItem('user_id');
+                if (jwtToken) {
+                    this.jwtToken = jwtToken;
+                }
+                if (userId) {
+                    this.userProfile = { user_id: userId, user_type: userType };
+                }
+
+                // Start quiz automatically
                 await this.startQuiz(quizRole);
                 return true;
             }
 
             // Fallback to old JWT token-based auto-start (if no user_type from Flutter)
             this.logger.info('ℹ️ No user_type from Flutter, checking for JWT token fallback...');
-            
+
             // Check for JWT in cookies first (preferred by Flutter)
             let jwtToken = this.getCookie('jwt_token') || this.getCookie('access_token');
 
@@ -160,25 +168,25 @@ class OrientationApp {
                 this.logger.info('👤 User profile retrieved:', userProfile);
 
                 // Map user_type to quiz role
-                const profileUserType = userProfile.user_type || 'bachelier';
+                const userTypeFromProfile = userProfile.user_type || 'bachelier';
                 let quizRole;
 
-                switch (profileUserType.toLowerCase()) {
+                switch (userTypeFromProfile.toLowerCase()) {
                     case 'bachelier':
-                        quizRole = 'student'; // 15 questions
+                        quizRole = 'student'; // 15 questions - exploration
                         break;
                     case 'etudiant':
-                        quizRole = 'student'; // 10 questions
+                        quizRole = 'student'; // 10 questions - réorientation
                         break;
                     case 'parent':
-                        quizRole = 'parent'; // 5 questions
+                        quizRole = 'parent'; // 5 questions - guidage
                         break;
                     default:
-                        quizRole = 'student';
-                        this.logger.warn(`⚠️ Unknown user_type "${profileUserType}", defaulting to student`);
+                        quizRole = 'student'; // Default fallback
+                        this.logger.warn(`⚠️ Unknown user_type "${userTypeFromProfile}", defaulting to student`);
                 }
 
-                this.logger.info(`🎯 Auto-starting quiz | user_type=${profileUserType} | role=${quizRole}`);
+                this.logger.info(`🎯 Auto-starting quiz | user_type=${userTypeFromProfile} | role=${quizRole}`);
 
                 // Store user info for later use
                 this.userProfile = userProfile;
@@ -203,70 +211,6 @@ class OrientationApp {
     }
 
     /**
-     * 🔐 Decode JWT token to extract claims (user_type, user_id, etc.)
-     * Frontend does its own decoding - doesn't trust backend for user_type
-     */
-    decodeJWT(token) {
-        try {
-            if (!token) return null;
-            
-            // JWT format: header.payload.signature
-            const parts = token.split('.');
-            if (parts.length !== 3) {
-                this.logger.warn('❌ Invalid JWT format');
-                return null;
-            }
-
-            // Decode payload (second part)
-            const payload = parts[1];
-            // Add padding if needed
-            const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-            
-            const decodedPayload = atob(paddedPayload);
-            const claims = JSON.parse(decodedPayload);
-            
-            this.logger.info('✅ JWT decoded | claims:', claims);
-            return claims;
-        } catch (error) {
-            this.logger.error('❌ JWT decode error:', error);
-            return null;
-        }
-    }
-
-    /**
-     * 🔐 Extract user_type from JWT (safe way - no frontend manipulation)
-     */
-    getUserTypeFromJWT() {
-        try {
-            const token = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-            if (!token) {
-                this.logger.warn('⚠️ No token in localStorage');
-                return null;
-            }
-
-            const claims = this.decodeJWT(token);
-            if (!claims) {
-                return null;
-            }
-
-            // Try different claim names that might contain user_type
-            const userType = claims.user_type || 
-                           claims.userType || 
-                           claims['cognito:username'] ||
-                           claims.sub;
-
-            if (userType) {
-                this.logger.info(`✅ User type extracted from JWT: ${userType}`);
-            }
-            
-            return userType;
-        } catch (error) {
-            this.logger.error('❌ Error extracting user_type from JWT:', error);
-            return null;
-        }
-    }
-
-    /**
      * Get cookie value by name
      */
     getCookie(name) {
@@ -279,90 +223,27 @@ class OrientationApp {
     }
 
     /**
-     * 🔐 Listen for Flutter token injection
-     * Flutter injects ONLY JWT via JavaScript after WebView loads
-     * We decode it here to extract user_type (secure - no frontend manipulation)
-     */
-    setupFlutterTokenListener() {
-        // Listen for custom event from Flutter with JWT token
-        window.addEventListener('FlutterTokenReady', (event) => {
-            // Extract token from event.detail object
-            const token = event.detail?.token || event.detail;
-            if (!token) {
-                this.logger.warn('⚠️ No token received from Flutter');
-                return;
-            }
-            
-            this.logger.info('🔐 JWT token received from Flutter');
-            
-            // Store token for API calls
-            localStorage.setItem('jwt_token', token);
-            localStorage.setItem('access_token', token);
-            
-            // Store user_id if provided
-            const userId = event.detail?.userId;
-            if (userId && userId !== '') {
-                localStorage.setItem('user_id', userId);
-            }
-            
-            // 🔐 SECURE: Decode JWT to extract user_type (cryptographically verified)
-            // This prevents frontend tampering - user_type comes from signed token, not modifiable localStorage
-            const userType = this.getUserTypeFromJWT();
-            if (userType) {
-                localStorage.setItem('user_type', userType);
-                this.logger.info(`✅ User type extracted from JWT: ${userType}`);
-            } else {
-                this.logger.warn('⚠️ Could not extract user_type from JWT token');
-            }
-            
-            // Trigger auto-start with JWT-extracted user_type
-            this.autoStartWithToken();
-        });
-
-        // Also handle message events (alternative Flutter communication method)
-        window.addEventListener('message', (event) => {
-            if (event.data?.type === 'FlutterTokenReady') {
-                const token = event.data.jwt_token;
-                if (!token) return;
-                
-                localStorage.setItem('jwt_token', token);
-                localStorage.setItem('access_token', token);
-                
-                const userType = this.getUserTypeFromJWT();
-                if (userType) {
-                    localStorage.setItem('user_type', userType);
-                    this.logger.info(`✅ User type extracted from JWT: ${userType}`);
-                }
-                
-                this.autoStartWithToken();
-            }
-        });
-
-        // Check if token was already injected before listener was set up
-        const existingToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-        if (existingToken) {
-            this.logger.info('✅ Token already in localStorage from Flutter injection');
-            
-            // Try to extract user_type if not already present
-            const existingUserType = localStorage.getItem('user_type');
-            if (!existingUserType) {
-                const userType = this.getUserTypeFromJWT();
-                if (userType) {
-                    localStorage.setItem('user_type', userType);
-                }
-            }
-        }
-    }
-
-    /**
      * Setup DOM event listeners
      */
     setupEventListeners() {
+        // 🔐 Listen for Flutter token injection (PORA integration)
+        window.addEventListener('FlutterTokenReady', (event) => {
+            this.logger.info('📱 Flutter token ready event received', event.detail);
+            // Auto-start will be triggered in autoStartWithToken()
+        });
+
         // Role selection buttons
         document.querySelectorAll('[data-role]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const role = e.currentTarget.getAttribute('data-role');
                 this.startQuiz(role);
+            });
+        });
+
+        document.querySelectorAll('[data-bac-value]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const bacType = e.currentTarget.getAttribute('data-bac-value');
+                this.handleBacSelected(bacType);
             });
         });
 
@@ -382,7 +263,15 @@ class OrientationApp {
         try {
             this.logger.info(`🎮 Starting quiz for role: ${role}`);
 
+            if (role === 'student' && !this.quiz.hasBacType()) {
+                this.pendingRole = role;
+                this.ui.showBacSelection(this.quiz.getBacType());
+                this.logger.info('Waiting for required bac type before starting student quiz');
+                return;
+            }
+
             const quizState = this.quiz.startQuiz(role);
+            this.pendingRole = null;
             this.ui.showQuiz(role);
             this.ui.renderQuestion(quizState.firstQuestion);
 
@@ -390,6 +279,20 @@ class OrientationApp {
         } catch (error) {
             this.logger.error('❌ Failed to start quiz:', error);
             this.ui.showError('Impossible de démarrer le quiz. Veuillez réessayer.');
+        }
+    }
+
+    /**
+     * Handle bac selection before the student quiz starts
+     */
+    async handleBacSelected(value) {
+        try {
+            const bacType = this.quiz.setBacType(value);
+            this.logger.info(`Bac type selected: ${bacType}`);
+            await this.startQuiz(this.pendingRole || 'student');
+        } catch (error) {
+            this.logger.error('Failed to register bac type:', error);
+            this.ui.showBacSelection(this.quiz.getBacType());
         }
     }
 
@@ -427,6 +330,8 @@ class OrientationApp {
 
             // Map responses to PROA format
             let proaPayload;
+            const isMissingBacError = (error) =>
+                String(error?.message || error || '').toLowerCase().includes('type de bac');
             try {
                 proaPayload = this.quiz.mapToProaFormat();
             } catch (error) {
@@ -467,9 +372,12 @@ class OrientationApp {
                 }
             }
 
-            // Step 2: Extract recommended fields and call PORA if student
-            const recommendedFields = this.proaResult?.recommended_fields?.map(f => f.field_name) || [];
-            this.logger.info(`✅ PROA Result: ${recommendedFields.length} fields recommended:`, recommendedFields);
+            // Step 2: Apply a final coherence decision layer before calling PORA
+            const recommendationDecision = this.resolveRecommendationDecision(this.proaResult);
+            const coherentFields = recommendationDecision.fields;
+            const recommendedFields = coherentFields.map(f => f.field_name);
+            this.logger.info(`✅ PROA Result: ${recommendedFields.length} coherent fields recommended:`, recommendedFields);
+            this.logger.info(`🧠 Decision layer dominant cluster: ${recommendationDecision.dominantCluster}`);
 
             let universities = [];
             let centres = [];
@@ -478,37 +386,50 @@ class OrientationApp {
                 // Step 2: Call PORA service for recommendations
                 this.ui.showProgress(2, 3, 'Calcul des recommandations');
                 try {
-                    // 🔐 Include user_type from JWT in payload (extracted securely, not modifiable)
-                    const userType = localStorage.getItem('user_type') || 'bachelier';
-                    
+                    const poraSharedPayload = {
+                        user_id: this.quiz.getUserId(),
+                        profile_id: this.profileId,
+                        recommended_fields: recommendedFields,
+                        field_scores: this.proaResult?.field_scores || {},
+                        quiz_type: 'orientation',
+                        user_type: this.userProfile?.user_type || sessionStorage.getItem('user-role') || 'bachelier'
+                    };
+
                     const poraPayload = {
+                        ...poraSharedPayload,
                         user_id: this.quiz.getUserId(),
                         profile_id: this.profileId,  // 🔗 Traçabilité vers le profil PROA
                         recommended_fields: recommendedFields,
-                        quiz_type: 'orientation',
-                        user_type: userType  // 🔐 From JWT (secure source)
+                        quiz_type: 'orientation'
                     };
 
                     const poraResult = await this.api.callPoraService('universites', poraPayload);
                     this.logger.info('✅ PORA universities result:', poraResult);
-                    // Utiliser directement les données de PORA (elles contiennent target_name, score, confidence, reason)
-                    universities = poraResult.universites || [];
-                    this.logger.info(`✅ Got ${universities.length} university recommendations from PORA`);
+                    universities = await this.api.strictFilterPoraRecommendations(
+                        'universites',
+                        poraResult.universites || [],
+                        recommendedFields
+                    );
+                    this.logger.info(`✅ Got ${universities.length} strict university recommendations from PORA`);
 
                     // Appeler PORA pour les centres aussi
                     const poraCentresPayload = {
+                        ...poraSharedPayload,
                         user_id: this.quiz.getUserId(),
                         profile_id: this.profileId,
                         recommended_fields: recommendedFields,
-                        quiz_type: 'orientation',
-                        user_type: userType  // 🔐 From JWT (secure source)
+                        quiz_type: 'orientation'
                     };
 
                     const poraCentresResult = await this.api.callPoraService('centres', poraCentresPayload);
                     this.logger.info('✅ PORA centres result:', poraCentresResult);
 
-                    centres = poraCentresResult.centres || [];
-                    this.logger.info(`✅ Got ${centres.length} centre recommendations from PORA`);
+                    centres = await this.api.strictFilterPoraRecommendations(
+                        'centres',
+                        poraCentresResult.centres || [],
+                        recommendedFields
+                    );
+                    this.logger.info(`✅ Got ${centres.length} strict centre recommendations from PORA`);
 
                 } catch (error) {
                     this.logger.warn('⚠️ Failed to get PORA recommendations:', error);
@@ -519,17 +440,21 @@ class OrientationApp {
             }
 
             // Step 3: Prepare final result data
-            const topField = this.proaResult?.recommended_fields?.[0];
+            const topField = coherentFields[0] || this.proaResult?.recommended_fields?.[0];
+            const coverage = this.resolveCoverage();
             const resultData = {
                 title: topField?.field_name || 'Profil Unique',
                 description: topField?.reason || 'Votre profil d\'orientation a été calculé.',
-                aiInsight: this.buildAiInsight(topField, recommendedFields),
+                aiInsight: this.buildAiInsight(topField, recommendedFields, coverage),
                 parentBudget: this.quiz.getBudgetAdvice(),
+                coverage,
                 recommendations: {
                     top_fields: recommendedFields.slice(0, 5),
+                    top_field_details: coherentFields.slice(0, 5),
                     universities,
                     centres
-                }
+                },
+                dominantCluster: recommendationDecision.dominantCluster
             };
 
             // Cache results for offline use
@@ -563,22 +488,108 @@ class OrientationApp {
         this.quiz.reset();
         this.proaResult = null;
         this.poraResult = null;
+        this.pendingRole = null;
         this.ui.showWelcome();
     }
 
-    buildAiInsight(topField, recommendedFields = []) {
+    inferClusterFromFieldName(fieldName = '') {
+        const normalized = String(fieldName).toLowerCase();
+
+        if (/(reseau|telecom|informatique|logiciel|data|cyber|ia|intelligence artificielle)/.test(normalized)) {
+            return 'informatique';
+        }
+        if (/(droit|juridique|justice|penal|public|prive|diplomatie|politique)/.test(normalized)) {
+            return 'droit';
+        }
+        if (/(compta|finance|gestion|marketing|commerce|business|logistique)/.test(normalized)) {
+            return 'business';
+        }
+        if (/(medec|sante|pharma|infirm)/.test(normalized)) {
+            return 'sante';
+        }
+
+        return 'unknown';
+    }
+
+    resolveRecommendationDecision(proaResult) {
+        const fields = Array.isArray(proaResult?.recommended_fields)
+            ? [...proaResult.recommended_fields]
+            : [];
+
+        if (fields.length === 0) {
+            return { dominantCluster: null, fields: [] };
+        }
+
+        const clusterScores = {};
+        fields.forEach((field, index) => {
+            const cluster = field.cluster || this.inferClusterFromFieldName(field.field_name);
+            field.cluster = cluster;
+
+            const baseScore = Number(field.decision_score ?? field.score ?? field.confidence ?? 0.1);
+            const rankWeight = 1 / (index + 1);
+            clusterScores[cluster] = (clusterScores[cluster] || 0) + (baseScore * rankWeight);
+        });
+
+        let dominantCluster = proaResult?.dominant_cluster || null;
+        if (!dominantCluster) {
+            const sortedClusters = Object.entries(clusterScores).sort((a, b) => b[1] - a[1]);
+            dominantCluster = sortedClusters[0]?.[0] || null;
+        }
+
+        if (!dominantCluster || dominantCluster === 'unknown') {
+            return { dominantCluster, fields };
+        }
+
+        const ordered = [
+            ...fields.filter(field => field.cluster === dominantCluster),
+            ...fields.filter(field => field.cluster === 'unknown'),
+            ...fields.filter(field => field.cluster !== dominantCluster && field.cluster !== 'unknown')
+        ];
+
+        return {
+            dominantCluster,
+            fields: ordered
+        };
+    }
+
+    resolveCoverage() {
+        const breakdownCoverage = Number(
+            this.proaResult?.confidence_breakdown?.question_coverage?.score
+            ?? this.proaResult?.confidence_breakdown?.question_coverage
+        );
+        if (Number.isFinite(breakdownCoverage) && breakdownCoverage > 0) {
+            return breakdownCoverage;
+        }
+
+        const answeredQuestions = Object.keys(this.quiz?.getAnswers?.() || {}).length;
+        const totalQuestions = this.quiz?.getTotalQuestions?.() || answeredQuestions || 1;
+        return Math.min(1, answeredQuestions / Math.max(totalQuestions, 1));
+    }
+
+    buildAiInsight(topField, recommendedFields = [], coverage = null) {
         const fieldName = topField?.field_name || recommendedFields?.[0] || 'ton orientation';
         const score = topField?.score || topField?.confidence || null;
+        const bacMatchScore = Number(topField?.bac_match_score ?? topField?.bac_score ?? 0);
+        const coverageSuffix = Number.isFinite(coverage)
+            ? ` Couverture des reponses: ${Math.round(coverage * 100)}%.`
+            : '';
 
         if (score && Number(score) >= 0.75) {
-            return `Ton profil montre une forte coherence autour de ${fieldName}, avec un vrai potentiel d analyse et d initiative.`;
+            const bacSuffix = bacMatchScore >= 0.7
+                ? ` La compatibilite avec ton bac renforce aussi cette piste (${Math.round(bacMatchScore * 100)}%).`
+                : '';
+            return `Ton profil montre une forte coherence autour de ${fieldName}, avec un vrai potentiel d analyse et d initiative.${bacSuffix}${coverageSuffix}`;
+        }
+
+        if (bacMatchScore >= 0.7) {
+            return `Ton profil garde plusieurs options ouvertes, mais ${fieldName} ressort avec une bonne coherence et une compatibilite bac solide (${Math.round(bacMatchScore * 100)}%).${coverageSuffix}`;
         }
 
         if (recommendedFields.length >= 3) {
-            return `Ton profil combine curiosite, adaptation et sens de progression. ${fieldName} ressort comme une piste solide parmi plusieurs options prometteuses.`;
+            return `Ton profil combine curiosite, adaptation et sens de progression. ${fieldName} ressort comme une piste solide parmi plusieurs options prometteuses.${coverageSuffix}`;
         }
 
-        return `Ton profil montre une forte capacite d analyse et une progression claire vers ${fieldName}.`;
+        return `Ton profil montre une forte capacite d analyse et une progression claire vers ${fieldName}.${coverageSuffix}`;
     }
 
 
@@ -589,6 +600,7 @@ class OrientationApp {
         return {
             initialized: this.initialized,
             currentRole: this.quiz ? this.quiz.getCurrentRole() : null,
+            bacType: this.quiz ? this.quiz.getBacType() : null,
             selectedAnswers: this.quiz ? this.quiz.getAnswers() : {},
             proaResult: this.proaResult,
             poraResult: this.poraResult,
