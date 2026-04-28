@@ -117,7 +117,7 @@ class OrientationApp {
 
                 // Store JWT token for API calls
                 const jwtToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-                const userId = localStorage.getItem('user_id');
+                const userId = localStorage.getItem('user_id') || sessionStorage.getItem('user-id');
                 if (jwtToken) {
                     this.jwtToken = jwtToken;
                 }
@@ -126,6 +126,11 @@ class OrientationApp {
                     if (!sessionStorage.getItem('user-id')) {
                         sessionStorage.setItem('user-id', userId);
                     }
+                }
+
+                if (!userId) {
+                    this.logger.warn('⚠️ Flutter auto-start requested but user_id is missing; deferring until injection completes');
+                    return false;
                 }
 
                 // Start quiz automatically
@@ -226,13 +231,54 @@ class OrientationApp {
     }
 
     /**
+     * Handle Flutter token injection event
+     */
+    async handleFlutterTokenReady(detail) {
+        try {
+            this.logger.info('📱 Handling FlutterTokenReady payload', detail);
+
+            const token = detail?.token || detail?.jwtToken || detail?.accessToken || localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+            const userType = detail?.userType || detail?.user_type || localStorage.getItem('user_type');
+            const userId = detail?.userId || detail?.user_id || localStorage.getItem('user_id');
+
+            if (token) {
+                this.jwtToken = token;
+                localStorage.setItem('jwt_token', token);
+                localStorage.setItem('access_token', token);
+            }
+
+            if (userType) {
+                localStorage.setItem('user_type', userType);
+            }
+
+            if (userId) {
+                localStorage.setItem('user_id', userId);
+                if (!sessionStorage.getItem('user-id')) {
+                    sessionStorage.setItem('user-id', userId);
+                }
+            }
+
+            if (userType && userId) {
+                this.userProfile = { user_id: userId, user_type: userType };
+            }
+
+            if (this.initialized && this.quiz && !this.quiz.getCurrentRole()) {
+                this.logger.info('📱 Deferred auto-start after Flutter injection');
+                await this.autoStartWithToken();
+            }
+        } catch (error) {
+            this.logger.warn('⚠️ Error handling FlutterTokenReady event:', error);
+        }
+    }
+
+    /**
      * Setup DOM event listeners
      */
     setupEventListeners() {
         // 🔐 Listen for Flutter token injection (PORA integration)
         window.addEventListener('FlutterTokenReady', (event) => {
             this.logger.info('📱 Flutter token ready event received', event.detail);
-            // Auto-start will be triggered in autoStartWithToken()
+            this.handleFlutterTokenReady(event.detail);
         });
 
         // Role selection buttons
@@ -395,7 +441,7 @@ class OrientationApp {
                         recommended_fields: recommendedFields,
                         field_scores: this.proaResult?.field_scores || {},
                         quiz_type: 'orientation',
-                        user_type: this.userProfile?.user_type || sessionStorage.getItem('user-role') || 'bachelier'
+                        user_type: this.userProfile?.user_type || localStorage.getItem('user_type') || sessionStorage.getItem('user-role') || 'bachelier'
                     };
 
                     const poraPayload = {
