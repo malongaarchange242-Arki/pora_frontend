@@ -503,15 +503,19 @@ class QuizService {
      * Get user ID from session/browser storage
      */
     getUserId() {
-        // Try sessionStorage first
-        let userId = sessionStorage.getItem('user-id');
-        
-        // Fall back to random UUID
+        // Use authenticated user id from localStorage when available
+        let userId = localStorage.getItem('user_id') || sessionStorage.getItem('user-id');
+
         if (!userId) {
             userId = this.generateUUID();
             sessionStorage.setItem('user-id', userId);
+        } else {
+            // Keep sessionStorage in sync for legacy flows
+            if (!sessionStorage.getItem('user-id')) {
+                sessionStorage.setItem('user-id', userId);
+            }
         }
-        
+
         return userId;
     }
 

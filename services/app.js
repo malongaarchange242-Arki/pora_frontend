@@ -123,6 +123,9 @@ class OrientationApp {
                 }
                 if (userId) {
                     this.userProfile = { user_id: userId, user_type: userType };
+                    if (!sessionStorage.getItem('user-id')) {
+                        sessionStorage.setItem('user-id', userId);
+                    }
                 }
 
                 // Start quiz automatically
