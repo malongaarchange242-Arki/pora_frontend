@@ -79,6 +79,7 @@
 
         // Store in window for use by config.js
         window.__ENV = env;
+        window.ENV = env;
         console.log('✅ Environment variables loaded from .env.local');
 
     } catch (error) {

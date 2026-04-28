@@ -15,7 +15,7 @@ const ENV = {
     // ORIENTATION SERVICES
     // ============================================
     PROA_SERVICE_URL: 'https://universearch-proa-service.onrender.com',
-    PORA_SERVICE_URL: 'http://localhost:8080',
+    PORA_SERVICE_URL: 'https://universearch-pora-service.onrender.com',
 
     // ============================================
     // API SETTINGS

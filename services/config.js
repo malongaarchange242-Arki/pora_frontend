@@ -108,24 +108,7 @@ const CONFIG = {
             }
         }
 
-        // Step 2: Load from window.ENV (set by env.js)
-        if (window.ENV) {
-            try {
-                this.SUPABASE.URL = window.ENV.SUPABASE_URL || this.SUPABASE.URL;
-                this.SUPABASE.ANON_KEY = window.ENV.SUPABASE_ANON_KEY || this.SUPABASE.ANON_KEY;
-                this.SERVICES.PROA_URL = window.ENV.PROA_SERVICE_URL || this.SERVICES.PROA_URL;
-                this.SERVICES.PORA_URL = window.ENV.PORA_SERVICE_URL || this.SERVICES.PORA_URL;
-                this.SERVICES.TIMEOUT_MS = window.ENV.API_TIMEOUT_MS || this.SERVICES.TIMEOUT_MS;
-                this.SERVICES.RETRY_ATTEMPTS = window.ENV.API_RETRY_ATTEMPTS || this.SERVICES.RETRY_ATTEMPTS;
-                this.SERVICES.RETRY_DELAY_MS = window.ENV.API_RETRY_DELAY_MS || this.SERVICES.RETRY_DELAY_MS;
-                this.UI.DEBUG_LOG_LEVEL = window.ENV.DEBUG_LOG_LEVEL || this.UI.DEBUG_LOG_LEVEL;
-                console.log('✅ Loaded config from env.js');
-            } catch (error) {
-                console.warn('⚠️ Could not load from env.js:', error.message);
-            }
-        }
-
-        // Step 3: Fall back to localStorage (user-configured)
+        // Step 2: Fall back to localStorage (user-configured)
         const stored = localStorage.getItem('orientation-config');
         if (stored) {
             try {
@@ -135,6 +118,29 @@ const CONFIG = {
             } catch (error) {
                 console.warn('⚠️ Invalid localStorage config:', error.message);
             }
+        }
+
+        // Step 3: Load from window.ENV or window.__ENV (set by env.js)
+        const activeEnv = window.ENV || window.__ENV;
+        if (activeEnv) {
+            try {
+                this.SUPABASE.URL = activeEnv.SUPABASE_URL || this.SUPABASE.URL;
+                this.SUPABASE.ANON_KEY = activeEnv.SUPABASE_ANON_KEY || this.SUPABASE.ANON_KEY;
+                this.SERVICES.PROA_URL = activeEnv.PROA_SERVICE_URL || this.SERVICES.PROA_URL;
+                this.SERVICES.PORA_URL = activeEnv.PORA_SERVICE_URL || this.SERVICES.PORA_URL;
+                this.SERVICES.TIMEOUT_MS = activeEnv.API_TIMEOUT_MS || this.SERVICES.TIMEOUT_MS;
+                this.SERVICES.RETRY_ATTEMPTS = activeEnv.API_RETRY_ATTEMPTS || this.SERVICES.RETRY_ATTEMPTS;
+                this.SERVICES.RETRY_DELAY_MS = activeEnv.API_RETRY_DELAY_MS || this.SERVICES.RETRY_DELAY_MS;
+                this.UI.DEBUG_LOG_LEVEL = activeEnv.DEBUG_LOG_LEVEL || this.UI.DEBUG_LOG_LEVEL;
+                console.log('✅ Loaded config from env.js');
+            } catch (error) {
+                console.warn('⚠️ Could not load from env.js:', error.message);
+            }
+        }
+
+        if (!['localhost', '127.0.0.1'].includes(window.location.hostname) && this.SERVICES.PROA_URL?.startsWith('http://localhost')) {
+            console.warn('⚠️ Ignoring development PROA_URL because frontend is not running on localhost');
+            this.SERVICES.PROA_URL = 'https://universearch-proa-service.onrender.com';
         }
 
         console.log('✅ Configuration ready');
