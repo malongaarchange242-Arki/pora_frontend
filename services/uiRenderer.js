@@ -511,10 +511,12 @@ class UIRenderer {
                 const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
                 const matchCount = uni.matching_fields_count || 0;
                 const totalFields = uni.total_recommended_fields || recommendedFieldNames.length || 0;
+                const feeLabel = this.formatFeeLabel(uni);
+                const metaLabel = feeLabel || `${matchCount}/${totalFields} filières`;
                 html += `
                     <li class="rec-list-item">
                         <span class="rec-list-name">${uniName}</span>
-                        <span class="rec-list-meta">${matchCount}/${totalFields} filières</span>
+                        <span class="rec-list-meta">${metaLabel}</span>
                     </li>
                 `;
             });
@@ -652,6 +654,16 @@ class UIRenderer {
             .replace(/[^a-z0-9\s]/g, ' ')
             .replace(/\s+/g, ' ')
             .trim();
+    }
+
+    formatFeeLabel(item) {
+        const price = Number(item?.min_monthly_price);
+        if (!Number.isFinite(price) || price <= 0) {
+            return '';
+        }
+
+        const currency = item?.fee_currency || 'XAF';
+        return `${Math.round(price).toLocaleString('fr-FR')} ${currency}/mois`;
     }
 
     normalizeItem(item) {

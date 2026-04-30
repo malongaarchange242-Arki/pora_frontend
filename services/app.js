@@ -440,6 +440,7 @@ class OrientationApp {
                         profile_id: this.profileId,
                         recommended_fields: recommendedFields,
                         field_scores: this.proaResult?.field_scores || {},
+                        budget_preference: this.quiz.getBudgetPreference(),
                         quiz_type: 'orientation',
                         user_type: this.userProfile?.user_type || localStorage.getItem('user_type') || sessionStorage.getItem('user-role') || 'bachelier'
                     };

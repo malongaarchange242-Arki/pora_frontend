@@ -43,8 +43,14 @@ class QuizService {
             const studentQuestions = uniqueQuestions.filter(q => q.quiz_type !== 'parent');
             const parentQuestions = uniqueQuestions.filter(q => q.quiz_type === 'parent');
             
-            this.questions.student = studentQuestions.slice(0, 10).map(q => this.formatQuestion(q));
-            this.questions.parent = parentQuestions.slice(0, 5).map(q => this.formatQuestion(q));
+            this.questions.student = [
+                ...studentQuestions.slice(0, 10).map(q => this.formatQuestion(q)),
+                this.createBudgetQuestion()
+            ];
+            this.questions.parent = [
+                ...parentQuestions.slice(0, 5).map(q => this.formatQuestion(q)),
+                this.createBudgetQuestion()
+            ];
             
             this.logger.log(`✅ Quiz service ready: ${this.questions.student.length} student, ${this.questions.parent.length} parent questions`);
             
@@ -56,6 +62,21 @@ class QuizService {
             this.logger.error('❌ Failed to initialize quiz:', error);
             throw error;
         }
+    }
+
+    createBudgetQuestion() {
+        return {
+            code: 'Q_BUDGET_SCOLARITE',
+            q: 'Quel budget mensuel pouvez-vous prévoir pour les frais de scolarité ?',
+            type: 'single_choice',
+            isBudgetQuestion: true,
+            o: [
+                { t: '25 000 XAF par mois ou moins', v: 1 },
+                { t: 'Jusqu’à 50 000 XAF par mois', v: 2 },
+                { t: 'Jusqu’à 100 000 XAF par mois', v: 3 },
+                { t: 'Plus de 100 000 XAF par mois', v: 4 }
+            ]
+        };
     }
 
     /**
@@ -354,12 +375,16 @@ class QuizService {
             this.scores[numericScore] += 2;
         }
 
-        // Budget advice for parents
-        if (numericScore === 1) {  // LOW budget
-            this.parentBudget = 'Privilégiez les Universités Publiques ou BTS.';
-        }
-        if (numericScore === 4) {  // HIGH budget
-            this.parentBudget = 'Les Grandes Écoles de Commerce/Ingénieurs sont accessibles.';
+        if (currentQuestion.isBudgetQuestion) {
+            this.parentBudget = this.getBudgetAdviceFromScore(numericScore);
+        } else {
+            // Budget advice for parents
+            if (numericScore === 1) {  // LOW budget
+                this.parentBudget = 'Privilégiez les Universités Publiques ou BTS.';
+            }
+            if (numericScore === 4) {  // HIGH budget
+                this.parentBudget = 'Les Grandes Écoles de Commerce/Ingénieurs sont accessibles.';
+            }
         }
 
         // Advance
@@ -463,6 +488,9 @@ class QuizService {
         const proaResponses = {};
         
         for (const [code, value] of Object.entries(this.selectedAnswers)) {
+            if (code === 'Q_BUDGET_SCOLARITE') {
+                continue;
+            }
             // Values are already converted to numeric scores 1-4
             proaResponses[code.toLowerCase()] = value;
             console.log(`🔄 ${code} -> ${value} (type: ${typeof value})`);
@@ -556,6 +584,29 @@ class QuizService {
      */
     getBudgetAdvice() {
         return this.parentBudget;
+    }
+
+    getBudgetPreference() {
+        const score = Number(this.selectedAnswers.Q_BUDGET_SCOLARITE);
+        const ranges = {
+            1: { level: 'low', label: '25 000 XAF par mois ou moins', max_monthly_price: 25000, currency: 'XAF' },
+            2: { level: 'medium', label: 'Jusqu’à 50 000 XAF par mois', max_monthly_price: 50000, currency: 'XAF' },
+            3: { level: 'high', label: 'Jusqu’à 100 000 XAF par mois', max_monthly_price: 100000, currency: 'XAF' },
+            4: { level: 'open', label: 'Plus de 100 000 XAF par mois', max_monthly_price: null, currency: 'XAF' }
+        };
+
+        return ranges[score] || null;
+    }
+
+    getBudgetAdviceFromScore(score) {
+        const preference = {
+            1: 'Nous filtrons les universités avec des frais mensuels inférieurs à 25 000 XAF.',
+            2: 'Nous filtrons les universités avec des frais mensuels inférieurs à 50 000 XAF.',
+            3: 'Nous filtrons les universités avec des frais mensuels inférieurs à 100 000 XAF.',
+            4: 'Le budget ne limite pas les recommandations universitaires.'
+        };
+
+        return preference[score] || null;
     }
 }
 
