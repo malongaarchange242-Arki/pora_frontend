@@ -84,6 +84,31 @@
         .hero-title { font-size: 2.5rem; font-weight: 800; margin-top: 40px; line-height: 1.1; }
         .hero-sub { color: #94a3b8; margin: 15px 0 40px 0; }
 
+        .page-loader {
+            min-height: calc(100vh - 40px);
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 18px;
+        }
+
+        .page-loader .spinner {
+            margin-bottom: 4px;
+        }
+
+        .loading-title {
+            font-size: 1.65rem;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .loading-sub {
+            max-width: 320px;
+            color: #94a3b8;
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }
+
         .role-card {
             background: var(--card-bg);
             border: 1px solid var(--glass);
@@ -422,25 +447,10 @@
         <div class="progress-track"><div id="progress-fill"></div></div>
     </div>
 
-    <div id="welcomeScreen" class="screen active">
-        <h1 class="hero-title">Trouve ta <span style="color:var(--primary)">voie</span>.</h1>
-        <p class="hero-sub">Le bachelier joue, le parent guide. Choisissez votre profil pour commencer.</p>
-        
-        <div class="role-card" data-role="student">
-            <div class="role-icon"><i class="fas fa-graduation-cap"></i></div>
-            <div>
-                <h3>Mode Bachelier</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8;">10 questions pour débloquer ton futur.</p>
-            </div>
-        </div>
-
-        <div class="role-card" data-role="parent">
-            <div class="role-icon"><i class="fas fa-users"></i></div>
-            <div>
-                <h3>Mode Parent</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8;">5 questions stratégiques pour l'enfant.</p>
-            </div>
-        </div>
+    <div id="welcomeScreen" class="screen active page-loader">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1 class="loading-title">Chargement de votre orientation</h1>
+        <p class="loading-sub">Veuillez patienter pendant la preparation de votre parcours.</p>
     </div>
 
     <div id="bacScreen" class="screen">
