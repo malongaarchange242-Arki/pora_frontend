@@ -222,54 +222,45 @@ class UIRenderer {
         selectedBtn.classList.add('selected');
     }
 
-    // 🔥 SINGLE CHOICE - Radio buttons
+    // 🔥 SINGLE CHOICE - Stylized card buttons
     renderSingleChoice(question, grid) {
-        const container = document.createElement('div');
-        container.className = 'single-choice-group';
-        
         (question.o || []).forEach(option => {
-            const label = document.createElement('label');
-            label.className = 'radio-option';
-            label.innerHTML = `
-                <span class="radio-input"></span>
-                <span class="radio-label">${option.t}</span>
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.type = 'button';
+            btn.innerHTML = `
+                <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
+                <span class="option-label">${option.t}</span>
             `;
-            label.addEventListener('click', (e) => {
-                e.preventDefault();
-                // Deselect all
-                container.querySelectorAll('.radio-option').forEach(opt => {
-                    opt.classList.remove('selected');
-                });
-                // Select this one
-                label.classList.add('selected');
+            btn.addEventListener('click', () => {
+                this.selectOption(btn);
                 this.onQuestionAnswered(option.v);
             });
-            container.appendChild(label);
+            grid.appendChild(btn);
         });
-        
-        grid.appendChild(container);
     }
 
-    // 🔥 MULTI CHOICE - Checkboxes
+    // 🔥 MULTI CHOICE - Stylized toggle cards
     renderMultiChoice(question, grid) {
         const container = document.createElement('div');
         container.className = 'multi-choice-group';
         container.id = 'multiChoiceContainer';
         
         (question.o || []).forEach(option => {
-            const label = document.createElement('label');
-            label.className = 'checkbox-option';
-            label.dataset.value = option.v;
-            label.innerHTML = `
-                <span class="checkbox-input"></span>
-                <span class="checkbox-label">${option.t}</span>
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.type = 'button';
+            btn.dataset.value = option.v;
+            btn.innerHTML = `
+                <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
+                <span class="option-label">${option.t}</span>
             `;
-            label.addEventListener('click', (e) => {
+            btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                label.classList.toggle('selected');
+                btn.classList.toggle('selected');
                 this.updateMultiChoiceValue(question);
             });
-            container.appendChild(label);
+            container.appendChild(btn);
         });
         
         grid.appendChild(container);
@@ -494,7 +485,7 @@ class UIRenderer {
             ? recommendations.universities
                 .map(uni => this.enrichRecommendationItem(uni, recommendedFieldNames))
                 .filter(Boolean)
-                .filter(uni => uni.matching_fields_count > 0)
+                .filter(uni => (uni.compatibility_score ?? 0) >= 0.9) // 🔥 SEULEMENT >= 90% correspondance
             : [];
 
         if (compatibleUniversities.length > 0) {
@@ -535,8 +526,14 @@ class UIRenderer {
             ? recommendations.centres
                 .map(centre => this.enrichRecommendationItem(centre, recommendedFieldNames))
                 .filter(Boolean)
-                .filter(centre => centre.matching_fields_count > 0)
+                .sort((a, b) => (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0))
             : [];
+
+        // 🔥 CORRECTION: Afficher les centres même sans correspondance parfaite
+        // Si aucun centre n'a de correspondance exacte, afficher les 3 meilleurs par score de compatibilité
+        const centresToShow = compatibleCentres.length > 0
+            ? compatibleCentres.filter(centre => centre.matching_fields_count > 0)
+            : compatibleCentres.slice(0, 3); // Afficher les 3 meilleurs centres même sans correspondance
 
         if (compatibleCentres.length > 0) {
             const sortedCentres = [...compatibleCentres].sort((a, b) => {
@@ -552,10 +549,14 @@ class UIRenderer {
                 const centreName = centre.target_name || centre.nom || centre.name || 'Inconnu';
                 const matchCount = centre.matching_fields_count || 0;
                 const totalFields = centre.total_recommended_fields || recommendedFieldNames.length || 0;
+                const hasPerfectMatch = matchCount > 0;
+                const metaLabel = hasPerfectMatch
+                    ? `${matchCount}/${totalFields} filières`
+                    : 'Formation généraliste';
                 html += `
-                    <li class="rec-list-item is-secondary">
+                    <li class="rec-list-item ${hasPerfectMatch ? '' : 'is-secondary'}">
                         <span class="rec-list-name">${centreName}</span>
-                        <span class="rec-list-meta">${matchCount}/${totalFields} filières</span>
+                        <span class="rec-list-meta">${metaLabel}</span>
                     </li>
                 `;
             });
@@ -749,17 +750,17 @@ class UIRenderer {
 
     getEmoji(value, type) {
         if (type === 'boolean') {
-            return Number(value) === 1 ? '?' : '??';
+            return Number(value) === 1 ? '✅' : '❌';
         }
 
         const map = {
-            1: '??',
-            2: '??',
-            3: '??',
-            4: '??'
+            1: '💸',
+            2: '💰',
+            3: '🏦',
+            4: '🚀'
         };
 
-        return map[value] || '??';
+        return map[value] || '✨';
     }
 
     getStageLabel(question) {

@@ -71,10 +71,10 @@ class QuizService {
             type: 'single_choice',
             isBudgetQuestion: true,
             o: [
-                { t: '25 000 XAF par mois ou moins', v: 1 },
-                { t: 'Jusqu’à 50 000 XAF par mois', v: 2 },
-                { t: 'Jusqu’à 100 000 XAF par mois', v: 3 },
-                { t: 'Plus de 100 000 XAF par mois', v: 4 }
+                { t: '≤ 25 000 XAF', v: 1 },
+                { t: '25 000 - 50 000 XAF', v: 2 },
+                { t: '50 000 - 100 000 XAF', v: 3 },
+                { t: '> 100 000 XAF', v: 4 }
             ]
         };
     }
