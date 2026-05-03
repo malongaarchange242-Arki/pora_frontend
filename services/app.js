@@ -92,9 +92,14 @@ class OrientationApp {
         try {
             this.logger.info('🔍 Checking for user_type for auto-start...');
 
-            // 👈 NEW: First check if user_type is in localStorage (from Flutter injection)
+            // 👈 DIRECT: Use Flutter-injected data (more reliable than Supabase session)
             const userType = localStorage.getItem('user_type');
-            if (userType) {
+            const userId = localStorage.getItem('user_id');
+            const token = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
+
+            this.logger.info(`📱 Flutter injection check | user_type=${userType} | user_id=${userId} | has_token=${!!token}`);
+
+            if (userType && userId && token) {
                 // Map user_type to quiz role
                 let quizRole;
 
@@ -113,39 +118,32 @@ class OrientationApp {
                         this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
                 }
 
-                // Get authenticated user from Supabase instead of relying on Flutter injection
-                const currentUser = await this.api.getCurrentUser();
-                if (!currentUser) {
-                    this.logger.warn('⚠️ No authenticated user found in Supabase');
-                    return false;
-                }
+                this.logger.info(`🎯 Auto-starting quiz | user_id=${userId} | user_type=${userType} | role=${quizRole}`);
 
-                // Get user profile from database to get user_type
-                const userProfile = await this.api.getUserProfile(currentUser.id);
-                const actualUserType = userProfile?.user_type || userType; // Fallback to injected user_type
-
-                this.logger.info(`🎯 Auto-starting quiz | user_id=${currentUser.id} | user_type=${actualUserType}`);
-
-                // Store user profile with authenticated user ID
+                // Store user profile with injected data
                 this.userProfile = { 
-                    user_id: currentUser.id, 
-                    user_type: actualUserType,
-                    email: currentUser.email
+                    user_id: userId, 
+                    user_type: userType
                 };
 
                 // Set profile ID (same as user ID in this system)
-                this.profileId = currentUser.id;
+                this.profileId = userId;
+                this.jwtToken = token;
 
                 // Set authenticated user in quiz service
-                this.quiz.setAuthenticatedUser(currentUser);
+                this.quiz.setAuthenticatedUser({
+                    id: userId,
+                    user_type: userType
+                });
 
                 // Store in sessionStorage for consistency
-                sessionStorage.setItem('user-id', currentUser.id);
-                sessionStorage.setItem('user-email', currentUser.email);
+                sessionStorage.setItem('user-id', userId);
 
                 // Start quiz automatically
                 await this.startQuiz(quizRole);
                 return true;
+            } else {
+                this.logger.warn(`⚠️ Incomplete Flutter injection data | user_type=${userType} | user_id=${userId} | token=${!!token}`);
             }
 
             // Fallback to old JWT token-based auto-start (if no user_type from Flutter)
@@ -251,6 +249,8 @@ class OrientationApp {
             const userType = detail?.userType || detail?.user_type || localStorage.getItem('user_type');
             const userId = detail?.userId || detail?.user_id || localStorage.getItem('user_id');
 
+            this.logger.info(`📱 FlutterTokenReady | user_type=${userType} | user_id=${userId} | has_token=${!!token}`);
+
             if (token) {
                 this.jwtToken = token;
                 localStorage.setItem('jwt_token', token);
@@ -272,9 +272,37 @@ class OrientationApp {
                 this.userProfile = { user_id: userId, user_type: userType };
             }
 
-            if (this.initialized && this.quiz && !this.quiz.getCurrentRole()) {
-                this.logger.info('📱 Deferred auto-start after Flutter injection');
-                await this.autoStartWithToken();
+            // 🔥 FORCE auto-start if we have all required data (even if app was showing welcome screen)
+            if (userType && userId && token) {
+                this.logger.info('🚀 Complete Flutter data received - auto-starting quiz');
+                
+                // Map user_type to quiz role
+                let quizRole;
+                switch (userType.toLowerCase()) {
+                    case 'bachelier':
+                        quizRole = 'student';
+                        break;
+                    case 'etudiant':
+                        quizRole = 'student';
+                        break;
+                    case 'parent':
+                        quizRole = 'parent';
+                        break;
+                    default:
+                        quizRole = 'student';
+                }
+                
+                // Set authenticated user in quiz service
+                this.quiz.setAuthenticatedUser({
+                    id: userId,
+                    user_type: userType
+                });
+                
+                // Set profile for the service
+                this.profileId = userId;
+                
+                // Start or restart the quiz
+                await this.startQuiz(quizRole);
             }
         } catch (error) {
             this.logger.warn('⚠️ Error handling FlutterTokenReady event:', error);

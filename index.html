@@ -537,6 +537,30 @@
 
 <!-- Feature Flags & Debug -->
 <script>
+    // Diagnostic function to help debug auto-start issues
+    function debugAutoStart() {
+        console.log('%c📋 PORA AUTO-START DIAGNOSTIC', 'font-size: 14px; font-weight: bold; color: #f43f5e;');
+        console.log('\n=== FLUTTER INJECTION DATA ===');
+        console.log('user_type (localStorage):', localStorage.getItem('user_type'));
+        console.log('user_id (localStorage):', localStorage.getItem('user_id'));
+        console.log('jwt_token (localStorage):', localStorage.getItem('jwt_token') ? '✅ Present' : '❌ Missing');
+        console.log('access_token (localStorage):', localStorage.getItem('access_token') ? '✅ Present' : '❌ Missing');
+        console.log('\n=== APPLICATION STATE ===');
+        console.log('App initialized:', window.orientationApp?.initialized);
+        console.log('App state:', window.orientationApp?.getState?.());
+        console.log('Current quiz role:', window.orientationApp?.quiz?.getCurrentRole?.());
+        console.log('\n=== RECOMMENDATIONS ===');
+        if (!localStorage.getItem('user_type')) {
+            console.warn('⚠️ user_type not found - Flutter injection may not have completed');
+        }
+        if (!localStorage.getItem('user_id')) {
+            console.warn('⚠️ user_id not found - Flutter injection may not have completed');
+        }
+        if (!localStorage.getItem('jwt_token') && !localStorage.getItem('access_token')) {
+            console.warn('⚠️ No JWT token found - auth may have failed');
+        }
+    }
+    
     // Make app accessible in console for debugging
     window.addEventListener('load', () => {
         console.log('%c🚀 Orientation App Loaded', 'font-size: 16px; font-weight: bold; color: #6366f1;');
@@ -545,7 +569,16 @@
         console.log('\nAvailable commands:');
         console.log('  window.orientationApp.getState()');
         console.log('  window.CONFIG');
+        console.log('  debugAutoStart() - Run diagnosis on auto-start');
+        
+        // Run automatic diagnostic after app is initialized
+        setTimeout(() => {
+            debugAutoStart();
+        }, 1000);
     });
+    
+    // Expose diagnostic function globally
+    window.debugAutoStart = debugAutoStart;
 </script>
 
 </body>
