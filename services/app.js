@@ -113,25 +113,35 @@ class OrientationApp {
                         this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
                 }
 
-                this.logger.info(`🎯 Auto-starting quiz | user_type=${userType} | role=${quizRole}`);
-
-                // Store JWT token for API calls
-                const jwtToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-                const userId = localStorage.getItem('user_id') || sessionStorage.getItem('user-id');
-                if (jwtToken) {
-                    this.jwtToken = jwtToken;
-                }
-                if (userId) {
-                    this.userProfile = { user_id: userId, user_type: userType };
-                    if (!sessionStorage.getItem('user-id')) {
-                        sessionStorage.setItem('user-id', userId);
-                    }
-                }
-
-                if (!userId) {
-                    this.logger.warn('⚠️ Flutter auto-start requested but user_id is missing; deferring until injection completes');
+                // Get authenticated user from Supabase instead of relying on Flutter injection
+                const currentUser = await this.api.getCurrentUser();
+                if (!currentUser) {
+                    this.logger.warn('⚠️ No authenticated user found in Supabase');
                     return false;
                 }
+
+                // Get user profile from database to get user_type
+                const userProfile = await this.api.getUserProfile(currentUser.id);
+                const actualUserType = userProfile?.user_type || userType; // Fallback to injected user_type
+
+                this.logger.info(`🎯 Auto-starting quiz | user_id=${currentUser.id} | user_type=${actualUserType}`);
+
+                // Store user profile with authenticated user ID
+                this.userProfile = { 
+                    user_id: currentUser.id, 
+                    user_type: actualUserType,
+                    email: currentUser.email
+                };
+
+                // Set profile ID (same as user ID in this system)
+                this.profileId = currentUser.id;
+
+                // Set authenticated user in quiz service
+                this.quiz.setAuthenticatedUser(currentUser);
+
+                // Store in sessionStorage for consistency
+                sessionStorage.setItem('user-id', currentUser.id);
+                sessionStorage.setItem('user-email', currentUser.email);
 
                 // Start quiz automatically
                 await this.startQuiz(quizRole);

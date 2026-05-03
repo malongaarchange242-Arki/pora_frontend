@@ -17,6 +17,15 @@ class QuizService {
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
         this.parentBudget = null;
         this.bacType = this.loadStoredBacType();
+        this.authenticatedUser = null; // Store authenticated user
+    }
+
+    /**
+     * Set authenticated user from Supabase
+     */
+    setAuthenticatedUser(user) {
+        this.authenticatedUser = user;
+        this.logger.log('✅ Authenticated user set in quiz service:', user?.id);
     }
 
     /**
@@ -528,20 +537,21 @@ class QuizService {
     }
 
     /**
-     * Get user ID from session/browser storage
+     * Get user ID from authenticated user or fallback
      */
     getUserId() {
-        // Use authenticated user id from localStorage when available
-        let userId = localStorage.getItem('user_id') || sessionStorage.getItem('user-id');
+        // Use authenticated user ID first
+        if (this.authenticatedUser && this.authenticatedUser.id) {
+            return this.authenticatedUser.id;
+        }
+
+        // Fallback to sessionStorage for legacy flows
+        let userId = sessionStorage.getItem('user-id');
 
         if (!userId) {
             userId = this.generateUUID();
             sessionStorage.setItem('user-id', userId);
-        } else {
-            // Keep sessionStorage in sync for legacy flows
-            if (!sessionStorage.getItem('user-id')) {
-                sessionStorage.setItem('user-id', userId);
-            }
+            this.logger.warn('⚠️ Using generated UUID as fallback user ID:', userId);
         }
 
         return userId;

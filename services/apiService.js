@@ -27,6 +27,84 @@ class APIService {
     }
 
     /**
+     * 🔐 Get current authenticated user from Supabase
+     */
+    async getCurrentUser() {
+        if (!this.supabase) {
+            this.logger.warn('⚠️ Supabase not configured, cannot get current user');
+            return null;
+        }
+
+        try {
+            const { data: { user }, error } = await this.supabase.auth.getUser();
+            if (error) {
+                this.logger.warn('⚠️ Error getting current user:', error.message);
+                return null;
+            }
+            if (user) {
+                this.logger.log('✅ Current authenticated user:', user.id, user.email);
+                return {
+                    id: user.id,
+                    email: user.email,
+                    user_metadata: user.user_metadata || {}
+                };
+            }
+            return null;
+        } catch (error) {
+            this.logger.error('❌ Error in getCurrentUser:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 🔐 Get user profile from database
+     */
+    async getUserProfile(userId) {
+        if (!this.supabase) {
+            this.logger.warn('⚠️ Supabase not configured, cannot get user profile');
+            return null;
+        }
+
+        try {
+            // Get user data from utilisateurs table
+            const { data: userData, error: userError } = await this.supabase
+                .from('utilisateurs')
+                .select('id, user_type')
+                .eq('id', userId)
+                .single();
+
+            if (userError) {
+                this.logger.warn('⚠️ Error getting user data:', userError.message);
+            }
+
+            // Get profile data from profiles table
+            const { data: profileData, error: profileError } = await this.supabase
+                .from('profiles')
+                .select('id, email, nom, prenom, telephone, profile_type, date_naissance, genre')
+                .eq('id', userId)
+                .single();
+
+            if (profileError) {
+                this.logger.warn('⚠️ Error getting profile data:', profileError.message);
+                return null;
+            }
+
+            if (profileData) {
+                const fullProfile = {
+                    ...profileData,
+                    user_type: userData?.user_type || 'bachelier' // Default fallback
+                };
+                this.logger.log('✅ User profile loaded:', fullProfile);
+                return fullProfile;
+            }
+            return null;
+        } catch (error) {
+            this.logger.error('❌ Error in getUserProfile:', error);
+            return null;
+        }
+    }
+
+    /**
      * 🔐 Get JWT token from localStorage (injected by Flutter)
      */
     getAuthToken() {
