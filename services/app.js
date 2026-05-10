@@ -14,6 +14,9 @@ class OrientationApp {
         this.poraResult = null;
         this.pendingRole = null;
         this.initialized = false;
+        this.eventListenersSetup = false;
+        this.pendingFlutterAuth = null;
+        this.flutterAuthStarted = false;
     }
 
     /**
@@ -65,17 +68,15 @@ class OrientationApp {
             }
 
             // Step 4: Setup event listeners
-            this.setupEventListeners();
-
-            // Step 5: Try auto-start with JWT token (Flutter integration)
-            const autoStarted = await this.autoStartWithToken();
-
-            if (!autoStarted) {
-                // No token or auto-start failed, show welcome screen
-                this.ui.showWelcome();
+            this.initialized = true;
+            if (!this.eventListenersSetup) {
+                this.setupEventListeners();
             }
 
-            this.initialized = true;
+            const flutterStarted = this.flushPendingFlutterAuth();
+            if (!flutterStarted) {
+                this.ui.showWelcome();
+            }
             this.logger.info('✅ Application ready!');
 
         } catch (error) {
@@ -83,149 +84,6 @@ class OrientationApp {
             this.ui.showError('Erreur d\'initialisation. Veuillez rafraîchir la page.');
         }
     }
-
-    /**
-     * 🚀 Auto-start quiz based on user_type from Flutter
-     * Maps user_type to quiz role and launches automatically
-     */
-    async autoStartWithToken() {
-        try {
-            this.logger.info('🔍 Checking for user_type for auto-start...');
-
-            // 👈 DIRECT: Use Flutter-injected data (more reliable than Supabase session)
-            const userType = localStorage.getItem('user_type');
-            const userId = localStorage.getItem('user_id');
-            const token = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-
-            this.logger.info(`📱 Flutter injection check | user_type=${userType} | user_id=${userId} | has_token=${!!token}`);
-
-            if (userType && userId && token) {
-                // Map user_type to quiz role
-                let quizRole;
-
-                switch (userType.toLowerCase()) {
-                    case 'bachelier':
-                        quizRole = 'student'; // 15 questions - exploration
-                        break;
-                    case 'etudiant':
-                        quizRole = 'student'; // 10 questions - réorientation
-                        break;
-                    case 'parent':
-                        quizRole = 'parent'; // 5 questions - guidage
-                        break;
-                    default:
-                        quizRole = 'student'; // Default fallback
-                        this.logger.warn(`⚠️ Unknown user_type "${userType}", defaulting to student`);
-                }
-
-                this.logger.info(`🎯 Auto-starting quiz | user_id=${userId} | user_type=${userType} | role=${quizRole}`);
-
-                // Store user profile with injected data
-                this.userProfile = { 
-                    user_id: userId, 
-                    user_type: userType
-                };
-
-                // Set profile ID (same as user ID in this system)
-                this.profileId = userId;
-                this.jwtToken = token;
-
-                // Set authenticated user in quiz service
-                this.quiz.setAuthenticatedUser({
-                    id: userId,
-                    user_type: userType
-                });
-
-                // Store in sessionStorage for consistency
-                sessionStorage.setItem('user-id', userId);
-
-                // Start quiz automatically
-                await this.startQuiz(quizRole);
-                return true;
-            } else {
-                this.logger.warn(`⚠️ Incomplete Flutter injection data | user_type=${userType} | user_id=${userId} | token=${!!token}`);
-            }
-
-            // Fallback to old JWT token-based auto-start (if no user_type from Flutter)
-            this.logger.info('ℹ️ No user_type from Flutter, checking for JWT token fallback...');
-
-            // Check for JWT in cookies first (preferred by Flutter)
-            let jwtToken = this.getCookie('jwt_token') || this.getCookie('access_token');
-
-            // Fallback to localStorage
-            if (!jwtToken) {
-                jwtToken = localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-            }
-
-            if (!jwtToken) {
-                this.logger.info('ℹ️ No JWT token found, showing welcome screen');
-                return false; // No token, show normal welcome
-            }
-
-            this.logger.info('🔑 JWT token found, fetching user profile...');
-
-            try {
-                // Fetch user profile from PROA service using JWT
-                const profileResponse = await fetch(`${window.CONFIG.SERVICES.PROA_URL}/orientation/profile`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${jwtToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 5000 // 5 second timeout
-                });
-
-                if (!profileResponse.ok) {
-                    this.logger.warn(`⚠️ Profile fetch failed with status ${profileResponse.status}, falling back to welcome screen`);
-                    return false;
-                }
-
-                const userProfile = await profileResponse.json();
-                this.logger.info('👤 User profile retrieved:', userProfile);
-
-                // Map user_type to quiz role
-                const userTypeFromProfile = userProfile.user_type || 'bachelier';
-                let quizRole;
-
-                switch (userTypeFromProfile.toLowerCase()) {
-                    case 'bachelier':
-                        quizRole = 'student'; // 15 questions - exploration
-                        break;
-                    case 'etudiant':
-                        quizRole = 'student'; // 10 questions - réorientation
-                        break;
-                    case 'parent':
-                        quizRole = 'parent'; // 5 questions - guidage
-                        break;
-                    default:
-                        quizRole = 'student'; // Default fallback
-                        this.logger.warn(`⚠️ Unknown user_type "${userTypeFromProfile}", defaulting to student`);
-                }
-
-                this.logger.info(`🎯 Auto-starting quiz | user_type=${userTypeFromProfile} | role=${quizRole}`);
-
-                // Store user info for later use
-                this.userProfile = userProfile;
-                this.jwtToken = jwtToken;
-
-                // Start quiz automatically
-                await this.startQuiz(quizRole);
-
-                return true; // Auto-started successfully
-
-            } catch (fetchError) {
-                this.logger.warn(`⚠️ Profile fetch error (non-blocking): ${fetchError.message}`);
-                // Don't fail the app initialization just because profile fetch failed
-                return false; // Fall back to welcome screen
-            }
-
-        } catch (error) {
-            this.logger.warn('⚠️ Auto-start check failed (non-blocking):', error);
-            // Fall back to normal welcome screen - don't crash the app
-            return false;
-        }
-    }
-
     /**
      * Get cookie value by name
      */
@@ -245,9 +103,16 @@ class OrientationApp {
         try {
             this.logger.info('📱 Handling FlutterTokenReady payload', detail);
 
-            const token = detail?.token || detail?.jwtToken || detail?.accessToken || localStorage.getItem('jwt_token') || localStorage.getItem('access_token');
-            const userType = detail?.userType || detail?.user_type || localStorage.getItem('user_type');
-            const userId = detail?.userId || detail?.user_id || localStorage.getItem('user_id');
+            this.pendingFlutterAuth = detail || {};
+
+            if (!this.initialized || !this.quiz || !this.ui) {
+                this.logger.info('Flutter auth received before quiz services are ready; deferring start');
+                return false;
+            }
+
+            const token = detail?.token || detail?.jwtToken || detail?.accessToken;
+            const userType = detail?.userType || detail?.user_type;
+            const userId = detail?.userId || detail?.user_id;
 
             this.logger.info(`📱 FlutterTokenReady | user_type=${userType} | user_id=${userId} | has_token=${!!token}`);
 
@@ -301,44 +166,69 @@ class OrientationApp {
                 // Set profile for the service
                 this.profileId = userId;
                 
-                // Start or restart the quiz
-                await this.startQuiz(quizRole);
+                if (this.flutterAuthStarted) {
+                    this.logger.info('Flutter auth already consumed, skipping duplicate quiz start');
+                    return true;
+                }
+                this.flutterAuthStarted = true;
+
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        this.startQuiz(quizRole);
+                    }, 50);
+                });
+                return true;
             }
         } catch (error) {
             this.logger.warn('⚠️ Error handling FlutterTokenReady event:', error);
+            return false;
         }
+    }
+
+    flushPendingFlutterAuth() {
+        if (!this.pendingFlutterAuth) {
+            return false;
+        }
+
+        this.handleFlutterTokenReady(this.pendingFlutterAuth);
+        return this.flutterAuthStarted;
     }
 
     /**
      * Setup DOM event listeners
      */
     setupEventListeners() {
+        if (this.eventListenersSetup) {
+            return;
+        }
+        this.eventListenersSetup = true;
+
         // 🔐 Listen for Flutter token injection (PORA integration)
         window.addEventListener('FlutterTokenReady', (event) => {
             this.logger.info('📱 Flutter token ready event received', event.detail);
             this.handleFlutterTokenReady(event.detail);
         });
 
-        // Role selection buttons
-        document.querySelectorAll('[data-role]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const role = e.currentTarget.getAttribute('data-role');
+        document.addEventListener('click', (e) => {
+            const roleButton = e.target.closest('[data-role]');
+            if (roleButton) {
+                const role = roleButton.getAttribute('data-role');
                 this.startQuiz(role);
-            });
-        });
+                return;
+            }
 
-        document.querySelectorAll('[data-bac-value]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const bacType = e.currentTarget.getAttribute('data-bac-value');
+            const bacButton = e.target.closest('[data-bac-value]');
+            if (bacButton) {
+                const bacType = bacButton.getAttribute('data-bac-value');
                 this.handleBacSelected(bacType);
-            });
-        });
+                return;
+            }
 
-        // Restart button
-        const restartBtn = document.querySelector('[data-action="restart"]');
-        if (restartBtn) {
-            restartBtn.addEventListener('click', () => this.restart());
-        }
+            const restartButton = e.target.closest('[data-action="restart"]');
+            if (restartButton) {
+                this.restart();
+            }
+        });
 
         this.logger.info('✅ Event listeners setup');
     }
@@ -481,7 +371,7 @@ class OrientationApp {
                         field_scores: this.proaResult?.field_scores || {},
                         budget_preference: this.quiz.getBudgetPreference(),
                         quiz_type: 'orientation',
-                        user_type: this.userProfile?.user_type || localStorage.getItem('user_type') || sessionStorage.getItem('user-role') || 'bachelier'
+                        user_type: this.userProfile?.user_type || sessionStorage.getItem('user-role') || 'bachelier'
                     };
 
                     const poraPayload = {
@@ -751,22 +641,40 @@ class Logger {
     }
 }
 
-// Export and initialize on page load
+// Export classes
 if (typeof window !== 'undefined') {
     window.OrientationApp = OrientationApp;
     window.Logger = Logger;
 
-    // Auto-initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            const app = new OrientationApp();
-            app.init();
-            window.orientationApp = app;
-        });
-    } else {
+    /**
+     * 🚀 BOOTSTRAP APPLICATION
+     * Wait for Flutter injection before initializing
+     */
+
+    const bootstrapApp = async () => {
+        console.log('🚀 Bootstrapping Orientation App...');
+
+        // Create app instance
         const app = new OrientationApp();
-        app.init();
         window.orientationApp = app;
+        app.setupEventListeners();
+
+        /**
+         * 🔥 WAIT FOR FLUTTER INJECTION
+         */
+        if (window.FlutterBridge?.postMessage) {
+            window.FlutterBridge.postMessage('AUTH_READY');
+        }
+        await app.init();
+
+        console.log('✅ Orientation App fully initialized');
+    };
+
+    // Start app when DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootstrapApp);
+    } else {
+        bootstrapApp();
     }
 }
 

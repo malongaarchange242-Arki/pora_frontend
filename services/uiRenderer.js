@@ -11,6 +11,28 @@ class UIRenderer {
         this.elements = this.findElements();
         this.enhanceLayout();
         this.elements = this.findElements();
+        this.currentQuestion = null;
+        this.setupDelegatedEvents();
+    }
+
+    setupDelegatedEvents() {
+        this.elements.optionsGrid?.addEventListener('click', (e) => {
+            const option = e.target.closest('[data-quiz-option]');
+            if (!option || !this.elements.optionsGrid.contains(option)) return;
+
+            e.preventDefault();
+            const value = option.dataset.value;
+            const optionType = option.dataset.quizOption;
+
+            if (optionType === 'multi') {
+                option.classList.toggle('selected');
+                this.updateMultiChoiceValue(this.currentQuestion);
+                return;
+            }
+
+            this.selectOption(option);
+            this.onQuestionAnswered(value);
+        });
     }
 
     findElements() {
@@ -144,6 +166,7 @@ class UIRenderer {
         }
 
         this.logger.log(`Rendering question ${question.step}/${question.total} (Type: ${question.type})`);
+        this.currentQuestion = question;
 
         if (this.elements.questionText) {
             this.elements.questionText.innerText = question.q;
@@ -197,14 +220,12 @@ class UIRenderer {
             const btn = document.createElement('button');
             btn.className = 'option-btn';
             btn.type = 'button';
+            btn.dataset.quizOption = 'single';
+            btn.dataset.value = option.v;
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
             `;
-            btn.addEventListener('click', () => {
-                this.selectOption(btn);
-                this.onQuestionAnswered(option.v);
-            });
             grid.appendChild(btn);
         });
     }
@@ -214,7 +235,7 @@ class UIRenderer {
         // Remove selected class from all buttons in the same grid
         const grid = selectedBtn.parentElement;
         if (grid) {
-            grid.querySelectorAll('.option-btn').forEach(btn => {
+            grid.querySelectorAll('[data-quiz-option="single"].selected').forEach(btn => {
                 btn.classList.remove('selected');
             });
         }
@@ -228,14 +249,12 @@ class UIRenderer {
             const btn = document.createElement('button');
             btn.className = 'option-btn';
             btn.type = 'button';
+            btn.dataset.quizOption = 'single';
+            btn.dataset.value = option.v;
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
             `;
-            btn.addEventListener('click', () => {
-                this.selectOption(btn);
-                this.onQuestionAnswered(option.v);
-            });
             grid.appendChild(btn);
         });
     }
@@ -250,16 +269,12 @@ class UIRenderer {
             const btn = document.createElement('button');
             btn.className = 'option-btn';
             btn.type = 'button';
+            btn.dataset.quizOption = 'multi';
             btn.dataset.value = option.v;
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
             `;
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                btn.classList.toggle('selected');
-                this.updateMultiChoiceValue(question);
-            });
             container.appendChild(btn);
         });
         
@@ -270,7 +285,7 @@ class UIRenderer {
         const container = document.getElementById('multiChoiceContainer');
         if (!container) return;
         
-        const selected = Array.from(container.querySelectorAll('.checkbox-option.selected'))
+        const selected = Array.from(container.querySelectorAll('[data-quiz-option="multi"].selected'))
             .map(opt => opt.dataset.value);
         
         if (selected.length > 0) {
