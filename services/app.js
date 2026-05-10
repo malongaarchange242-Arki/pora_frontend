@@ -352,9 +352,10 @@ class OrientationApp {
             // Step 2: Apply a final coherence decision layer before calling PORA
             const recommendationDecision = this.resolveRecommendationDecision(this.proaResult);
             const coherentFields = recommendationDecision.fields
-                .filter(field => this.getFieldConfidenceScore(field) > 0.9);
+                .sort((a, b) => this.getFieldConfidenceScore(b) - this.getFieldConfidenceScore(a))
+                .slice(0, 5);
             const recommendedFields = coherentFields.map(f => f.field_name);
-            this.logger.info(`✅ PROA Result: ${recommendedFields.length} fields above 90% recommended:`, recommendedFields);
+            this.logger.info(`✅ PROA Result: ${recommendedFields.length} top fields recommended:`, recommendedFields);
             this.logger.info(`🧠 Decision layer dominant cluster: ${recommendationDecision.dominantCluster}`);
 
             let universities = [];
