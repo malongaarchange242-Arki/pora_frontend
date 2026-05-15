@@ -30,7 +30,8 @@ const DIMENSIONS = {
     IMPACT: 'impact',
     FLEXIBILITY: 'flexibility',
     INTERNATIONAL: 'international',
-    EXPERTISE: 'expertise'
+    EXPERTISE: 'expertise',
+    ANALYSIS: 'analysis'
 };
 
 // Mapping bac congolais → dimensions prioritaires
@@ -385,9 +386,13 @@ function createPersonalizedQuizByBac(bacCode, targetQuestions = 8) {
     console.log(`🎯 Bac ${bacCode}: Dimensions prioritaires: ${priorityDimensions.join(', ')}`);
     
     let availableQuestions = filterQuestionsByBac(bacCode);
+    if (!availableQuestions || availableQuestions.length === 0) {
+        return createDynamicQuizMix(targetQuestions, bacCode);
+    }
     
-    // Shuffle and return
-    return all.sort(() => 0.5 - Math.random()).slice(0, targetQuestions);
+    // Shuffle and return the selected questions
+    const shuffled = [...availableQuestions].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, targetQuestions);
 }
 
 console.log('✅ Dynamic Questions module loaded. Available:');
