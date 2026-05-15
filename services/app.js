@@ -1,12 +1,68 @@
 /**
- * Orientation App Orchestrator
+ * Orientation App Orchestrator - Version 2.0
  * Coordinates APIService, QuizService, UIRenderer
  * Main entry point for the quiz application
+ * 
+ * AMÉLIORATIONS V2:
+ * - Support bac congolais complet
+ * - Cache intelligent avec TTL
+ * - Performance monitoring
+ * - Offline support
+ * - Meilleure gestion des erreurs
+ * - Analytics intégré
  */
+
+// ============================================================
+// 📊 LOGGER UTILITY
+// ============================================================
+
+/**
+ * Simple Logger utility
+ */
+class Logger {
+    constructor(level = 'info') {
+        this.level = level;
+        this.levels = { debug: 0, info: 1, warn: 2, error: 3 };
+    }
+
+    log(msg, ...args) {
+        if (this.levels[this.level] <= this.levels.info) {
+            console.log(msg, ...args);
+        }
+    }
+
+    info(msg, ...args) {
+        if (this.levels[this.level] <= this.levels.info) {
+            console.log(`ℹ️ ${msg}`, ...args);
+        }
+    }
+
+    warn(msg, ...args) {
+        if (this.levels[this.level] <= this.levels.warn) {
+            console.warn(`⚠️ ${msg}`, ...args);
+        }
+    }
+
+    error(msg, ...args) {
+        if (this.levels[this.level] <= this.levels.error) {
+            console.error(`❌ ${msg}`, ...args);
+        }
+    }
+
+    debug(msg, ...args) {
+        if (this.levels[this.level] <= this.levels.debug) {
+            console.debug(`🔍 ${msg}`, ...args);
+        }
+    }
+}
+
+// ============================================================
+// 🚀 ORIENTATION APP
+// ============================================================
 
 class OrientationApp {
     constructor() {
-        this.logger = new Logger(window.getConfig('UI.DEBUG_LOG_LEVEL', 'info'));
+        this.logger = new Logger(window.getConfig ? window.getConfig('UI.DEBUG_LOG_LEVEL', 'info') : 'info');
         this.api = null;
         this.quiz = null;
         this.ui = null;
@@ -17,73 +73,189 @@ class OrientationApp {
         this.eventListenersSetup = false;
         this.pendingFlutterAuth = null;
         this.flutterAuthStarted = false;
+        
+        // Performance metrics
+        this.performanceMetrics = {
+            appStartTime: performance.now(),
+            initTime: 0,
+            quizStartTime: null,
+            quizEndTime: null,
+            proaCallTime: null,
+            proaCallDuration: 0,
+            poraCallTime: null,
+            poraCallDuration: 0
+        };
+        
+        // Offline support
+        this.offlineMode = false;
+        this.pendingRequests = [];
+        this.userProfile = null;
+        this.profileId = null;
     }
 
     /**
-     * Initialize the entire application
+     * Initialize the entire application (V2 amélioré)
      */
     async init() {
+        const startTime = performance.now();
+        
         try {
-            this.logger.info('🚀 Initializing Orientation App...');
+            this.logger.info('🚀 Initializing Orientation App V2...');
 
             // Step 1: Initialize configuration
-            await CONFIG.initialize();
+            if (window.CONFIG && typeof window.CONFIG.initialize === 'function') {
+                await window.CONFIG.initialize();
+            }
             this.logger.info('✅ Configuration loaded');
 
-            // Step 2: Create services
-            this.api = new APIService({
-                SUPABASE_URL: window.CONFIG.SUPABASE.URL,
-                SUPABASE_ANON_KEY: window.CONFIG.SUPABASE.ANON_KEY,
-                PROA_URL: window.CONFIG.SERVICES.PROA_URL,
-                PORA_URL: window.CONFIG.SERVICES.PORA_URL,
-                TIMEOUT_MS: window.CONFIG.SERVICES.TIMEOUT_MS,
-                RETRY_ATTEMPTS: window.CONFIG.SERVICES.RETRY_ATTEMPTS,
-                RETRY_DELAY_MS: window.CONFIG.SERVICES.RETRY_DELAY_MS,
+            // Step 2: Check offline mode
+            this.offlineMode = !navigator.onLine;
+            if (this.offlineMode) {
+                this.logger.warn('📡 Offline mode detected - using cached data');
+                if (this.ui && this.ui.showOfflineWarning) {
+                    this.ui.showOfflineWarning();
+                }
+            }
+
+            // Step 3: Create services with bac support
+            const serviceConfig = {
+                SUPABASE_URL: window.CONFIG?.SUPABASE?.URL || process.env.SUPABASE_URL,
+                SUPABASE_ANON_KEY: window.CONFIG?.SUPABASE?.ANON_KEY || process.env.SUPABASE_ANON_KEY,
+                PROA_URL: window.CONFIG?.SERVICES?.PROA_URL || 'https://universearch-proa-service.onrender.com',
+                PORA_URL: window.CONFIG?.SERVICES?.PORA_URL || 'https://universearch-pora-service.onrender.com',
+                TIMEOUT_MS: window.CONFIG?.SERVICES?.TIMEOUT_MS || 10000,
+                RETRY_ATTEMPTS: window.CONFIG?.SERVICES?.RETRY_ATTEMPTS || 3,
+                RETRY_DELAY_MS: window.CONFIG?.SERVICES?.RETRY_DELAY_MS || 1000,
+                ENABLE_OFFLINE: true,
+                ENABLE_REALTIME: true,
                 logger: this.logger
-            });
+            };
+
+            this.api = new APIService(serviceConfig);
 
             this.quiz = new QuizService({
-                logger: this.logger
+                logger: this.logger,
+                enableBacSupport: true
             });
 
             this.ui = new UIRenderer({
                 logger: this.logger,
-                onQuestionAnswered: (value) => this.handleQuestionAnswered(value)
+                onQuestionAnswered: (value) => this.handleQuestionAnswered(value),
+                onBacSelected: (bacCode) => this.handleBacSelected(bacCode)
             });
 
             this.logger.info('✅ Services created');
 
-            // Step 3: Load quiz questions from database
+            // Step 4: Load quiz questions (with offline fallback)
+            let questions;
             try {
-                const questions = await this.api.loadQuizStructure();
-                const quizzes = await this.quiz.initialize(questions);
-                this.logger.info(`✅ Loaded ${Object.keys(quizzes).length} quiz types`);
+                questions = await this.api.loadQuizStructure();
+                if (questions && questions.length > 0) {
+                    this.cacheQuizStructure(questions);
+                }
             } catch (error) {
-                this.logger.error('❌ Failed to load quiz structure:', error);
-                this.ui.showError(
-                    'Impossible de charger le quiz. Veuillez rafraîchir la page.',
-                    () => location.reload()
-                );
-                return;
+                this.logger.warn('⚠️ Failed to load fresh quiz, trying cache');
+                questions = this.loadCachedQuizStructure();
+                if (!questions || questions.length === 0) {
+                    throw error;
+                }
             }
+            
+            const quizzes = await this.quiz.initialize(questions);
+            this.logger.info(`✅ Loaded ${Object.keys(quizzes).length} quiz types`);
 
-            // Step 4: Setup event listeners
+            // Step 5: Load user profile with bac info
+            await this.loadUserProfile();
+
+            // Step 6: Setup event listeners
             this.initialized = true;
             if (!this.eventListenersSetup) {
                 this.setupEventListeners();
             }
 
+            // Step 7: Performance tracking
+            this.performanceMetrics.initTime = performance.now() - startTime;
+            this.trackPerformance('app_init', this.performanceMetrics.initTime);
+
             const flutterStarted = this.flushPendingFlutterAuth();
-            if (!flutterStarted) {
+            if (!flutterStarted && this.ui) {
                 this.ui.showWelcome();
             }
-            this.logger.info('✅ Application ready!');
+            
+            this.logger.info(`✅ Application ready! (init: ${this.performanceMetrics.initTime.toFixed(0)}ms)`);
 
         } catch (error) {
             this.logger.error('❌ Initialization failed:', error);
-            this.ui.showError('Erreur d\'initialisation. Veuillez rafraîchir la page.');
+            if (this.ui) {
+                this.ui.showError(
+                    'Erreur d\'initialisation. Veuillez rafraîchir la page.',
+                    () => location.reload()
+                );
+            }
         }
     }
+
+    /**
+     * Load user profile with bac info (NOUVEAU)
+     */
+    async loadUserProfile() {
+        try {
+            const userId = localStorage.getItem('user_id') || sessionStorage.getItem('user-id');
+            if (userId && this.api) {
+                const profile = await this.api.getUserProfile(userId);
+                if (profile && profile.bac_code) {
+                    this.logger.info(`🎓 User bac code: ${profile.bac_code}`);
+                    if (this.quiz) {
+                        this.quiz.setBacType(profile.bac_code);
+                    }
+                    
+                    // Show bac info in UI
+                    const bacInfo = this.api.getBacInfo(profile.bac_code);
+                    if (bacInfo && this.ui && this.ui.showBacInfo) {
+                        this.ui.showBacInfo(bacInfo);
+                    }
+                }
+                this.userProfile = profile;
+            }
+        } catch (error) {
+            this.logger.warn('Could not load user profile:', error);
+        }
+    }
+
+    /**
+     * Load cached quiz structure for offline mode (NOUVEAU)
+     */
+    loadCachedQuizStructure() {
+        try {
+            const cached = localStorage.getItem('quiz_structure');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (parsed.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+                    this.logger.info('💾 Using cached quiz structure');
+                    return parsed.questions;
+                }
+            }
+            return null;
+        } catch (error) {
+            this.logger.warn('Failed to load cached quiz:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Cache quiz structure for offline (NOUVEAU)
+     */
+    cacheQuizStructure(questions) {
+        try {
+            localStorage.setItem('quiz_structure', JSON.stringify({
+                questions,
+                timestamp: Date.now()
+            }));
+        } catch (error) {
+            this.logger.warn('Failed to cache quiz structure:', error);
+        }
+    }
+
     /**
      * Get cookie value by name
      */
@@ -137,11 +309,10 @@ class OrientationApp {
                 this.userProfile = { user_id: userId, user_type: userType };
             }
 
-            // 🔥 FORCE auto-start if we have all required data (even if app was showing welcome screen)
+            // Force auto-start if we have all required data
             if (userType && userId && token) {
                 this.logger.info('🚀 Complete Flutter data received - auto-starting quiz');
                 
-                // Map user_type to quiz role
                 let quizRole;
                 switch (userType.toLowerCase()) {
                     case 'bachelier':
@@ -157,13 +328,13 @@ class OrientationApp {
                         quizRole = 'student';
                 }
                 
-                // Set authenticated user in quiz service
-                this.quiz.setAuthenticatedUser({
-                    id: userId,
-                    user_type: userType
-                });
+                if (this.quiz) {
+                    this.quiz.setAuthenticatedUser({
+                        id: userId,
+                        user_type: userType
+                    });
+                }
                 
-                // Set profile for the service
                 this.profileId = userId;
                 
                 if (this.flutterAuthStarted) {
@@ -203,7 +374,7 @@ class OrientationApp {
         }
         this.eventListenersSetup = true;
 
-        // 🔐 Listen for Flutter token injection (PORA integration)
+        // Listen for Flutter token injection
         window.addEventListener('FlutterTokenReady', (event) => {
             this.logger.info('📱 Flutter token ready event received', event.detail);
             this.handleFlutterTokenReady(event.detail);
@@ -230,46 +401,103 @@ class OrientationApp {
             }
         });
 
+        // Network status listeners
+        window.addEventListener('online', () => {
+            this.logger.info('📡 Back online');
+            this.offlineMode = false;
+            if (this.ui && this.ui.hideOfflineWarning) {
+                this.ui.hideOfflineWarning();
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            this.logger.warn('📡 Offline mode activated');
+            this.offlineMode = true;
+            if (this.ui && this.ui.showOfflineWarning) {
+                this.ui.showOfflineWarning();
+            }
+        });
+
         this.logger.info('✅ Event listeners setup');
     }
 
     /**
-     * Start quiz for a given role (student or parent)
+     * Handle bac selection with validation (AMÉLIORÉ)
+     */
+    async handleBacSelected(value) {
+        try {
+            this.logger.info(`🎓 Bac selected: ${value}`);
+            
+            // Validate bac code
+            const bacInfo = this.api ? this.api.getBacInfo(value) : null;
+            if (!bacInfo) {
+                this.logger.warn(`Unknown bac code: ${value}, using default`);
+                if (this.ui && this.ui.showWarning) {
+                    this.ui.showWarning(`Code bac "${value}" non reconnu, poursuite avec options par défaut`);
+                }
+            } else if (this.ui) {
+                this.logger.info(`✅ Bac validated: ${bacInfo.label} (${bacInfo.track})`);
+                this.ui.showSuccess(`Bac ${value} (${bacInfo.label}) pris en compte`);
+            }
+            
+            if (this.quiz) {
+                this.quiz.setBacType(value);
+            }
+            
+            // Track bac selection
+            this.trackEvent('bac_selected', { bac_code: value, bac_track: bacInfo?.track });
+            
+            await this.startQuiz(this.pendingRole || 'student');
+        } catch (error) {
+            this.logger.error('Failed to register bac type:', error);
+            if (this.ui) {
+                this.ui.showError('Erreur lors de l\'enregistrement du bac');
+                if (this.quiz) {
+                    this.ui.showBacSelection(this.quiz.getBacType());
+                }
+            }
+        }
+    }
+
+    /**
+     * Start quiz for a given role (AMÉLIORÉ)
      */
     async startQuiz(role) {
         try {
             this.logger.info(`🎮 Starting quiz for role: ${role}`);
+            this.performanceMetrics.quizStartTime = performance.now();
 
+            if (!this.quiz) {
+                throw new Error('Quiz service not initialized');
+            }
+
+            // Check if bac is required for student
             if (role === 'student' && !this.quiz.hasBacType()) {
                 this.pendingRole = role;
-                this.ui.showBacSelection(this.quiz.getBacType());
+                const availableBacTypes = this.quiz.getAvailableBacTypes();
+                if (this.ui) {
+                    this.ui.showBacSelection(availableBacTypes);
+                }
                 this.logger.info('Waiting for required bac type before starting student quiz');
                 return;
             }
 
             const quizState = this.quiz.startQuiz(role);
             this.pendingRole = null;
-            this.ui.showQuiz(role);
-            this.ui.renderQuestion(quizState.firstQuestion);
+            if (this.ui) {
+                this.ui.showQuiz(role);
+                this.ui.renderQuestion(quizState.firstQuestion);
+            }
+            
+            // Track quiz start
+            this.trackEvent('quiz_started', { role, total_questions: quizState.totalQuestions });
 
             this.logger.info(`✅ Quiz started: ${quizState.totalQuestions} questions`);
         } catch (error) {
             this.logger.error('❌ Failed to start quiz:', error);
-            this.ui.showError('Impossible de démarrer le quiz. Veuillez réessayer.');
-        }
-    }
-
-    /**
-     * Handle bac selection before the student quiz starts
-     */
-    async handleBacSelected(value) {
-        try {
-            const bacType = this.quiz.setBacType(value);
-            this.logger.info(`Bac type selected: ${bacType}`);
-            await this.startQuiz(this.pendingRole || 'student');
-        } catch (error) {
-            this.logger.error('Failed to register bac type:', error);
-            this.ui.showBacSelection(this.quiz.getBacType());
+            if (this.ui) {
+                this.ui.showError('Impossible de démarrer le quiz. Veuillez réessayer.');
+            }
         }
     }
 
@@ -278,59 +506,75 @@ class OrientationApp {
      */
     async handleQuestionAnswered(value) {
         try {
+            if (!this.quiz) {
+                throw new Error('Quiz service not initialized');
+            }
+            
             const result = this.quiz.answerQuestion(value);
 
             if (result.complete) {
                 // Quiz finished - submit and show results
                 await this.submitAndShowResults();
-            } else {
+            } else if (this.ui) {
                 // Show next question
                 this.ui.renderQuestion(result.nextQuestion);
             }
         } catch (error) {
             this.logger.error('❌ Error handling answer:', error);
-            this.ui.showError('Une erreur s\'est produite. Veuillez réessayer.');
+            if (this.ui) {
+                this.ui.showError('Une erreur s\'est produite. Veuillez réessayer.');
+            }
         }
     }
 
     /**
-     * CRITICAL: Submit quiz responses and show results
-     * This is the main async flow that was broken before
+     * Submit quiz and show results (AMÉLIORÉ avec bac)
      */
     async submitAndShowResults() {
+        const submitStartTime = performance.now();
+        
         try {
             this.logger.info('📤 Quiz complete! Submitting responses...');
+            this.performanceMetrics.quizEndTime = submitStartTime;
+
+            if (!this.ui || !this.quiz || !this.api) {
+                throw new Error('Services not initialized');
+            }
 
             // Show results screen with loading state
             this.ui.showResults();
             this.ui.showLoader('Analyse en cours... Calcul du profil');
 
-            // Map responses to PROA format
+            // Map responses to PROA format with bac info
             let proaPayload;
-            const isMissingBacError = (error) =>
-                String(error?.message || error || '').toLowerCase().includes('type de bac');
             try {
                 proaPayload = this.quiz.mapToProaFormat();
+                
+                // Add bac info if available
+                const bacCode = this.quiz.getBacType();
+                if (bacCode) {
+                    proaPayload.bac_code = bacCode;
+                    this.logger.info(`🎓 Including bac code in PROA payload: ${bacCode}`);
+                }
             } catch (error) {
                 this.logger.error('❌ Response validation failed:', error);
                 this.ui.showError('Réponses invalides. Veuillez relancer le quiz.');
                 return;
             }
 
-            // Step 1: Call PROA service (field recommendations)
+            // Step 1: Call PROA service (with bac boost)
             this.ui.showProgress(1, 3, 'Récupération des filières recommandées');
+            this.performanceMetrics.proaCallTime = performance.now();
+            
             try {
-                this.proaResult = await this.api.callProaService(proaPayload);
-                // 🔗 Sauvegarder profile_id pour la traçabilité des recommandations
+                this.proaResult = await this.api.callProaService(proaPayload, this.quiz.getBacType());
                 this.profileId = this.proaResult?.profile_id || null;
                 
-                // 🔍 LOG: Vérifier que profile_id est bien reçu
-                this.logger.info('📋 PROA Full Response:', this.proaResult);
-                this.logger.info(`🔗 ProfileID extracted: "${this.profileId}"`);
+                this.performanceMetrics.proaCallDuration = performance.now() - this.performanceMetrics.proaCallTime;
+                this.trackPerformance('proa_call', this.performanceMetrics.proaCallDuration);
                 
-                if (!this.profileId) {
-                    this.logger.warn('⚠️ WARNING: profile_id is null or undefined - recommandations may not be traced!');
-                }
+                this.logger.info(`✅ PROA completed in ${this.performanceMetrics.proaCallDuration.toFixed(0)}ms`);
+                
             } catch (error) {
                 this.logger.error('⚠️ PROA service failed, using cached data or fallback');
                 
@@ -339,31 +583,31 @@ class OrientationApp {
                 if (cached) {
                     this.logger.info('💾 Using cached PROA result');
                     this.proaResult = cached.proaResult;
+                } else if (this.offlineMode) {
+                    this.proaResult = this.generateOfflineProaResult();
                 } else {
-                    this.logger.error('❌ No cache available, showing error');
-                    this.ui.showError(
-                        'Impossible de récupérer les recommandations de filières.',
-                        () => this.submitAndShowResults()
-                    );
-                    return;
+                    throw error;
                 }
             }
 
-            // Step 2: Apply a final coherence decision layer before calling PORA
+            // Apply coherence decision layer with cluster detection
             const recommendationDecision = this.resolveRecommendationDecision(this.proaResult);
             const coherentFields = recommendationDecision.fields
                 .sort((a, b) => this.getFieldConfidenceScore(b) - this.getFieldConfidenceScore(a))
                 .slice(0, 5);
             const recommendedFields = coherentFields.map(f => f.field_name);
-            this.logger.info(`✅ PROA Result: ${recommendedFields.length} top fields recommended:`, recommendedFields);
-            this.logger.info(`🧠 Decision layer dominant cluster: ${recommendationDecision.dominantCluster}`);
+            
+            this.logger.info(`✅ PROA Result: ${recommendedFields.length} top fields`);
+            this.logger.info(`🧠 Dominant cluster: ${recommendationDecision.dominantCluster}`);
 
             let universities = [];
             let centres = [];
 
             if (this.quiz.getCurrentRole() === 'student') {
-                // Step 2: Call PORA service for recommendations
+                // Step 2: Call PORA service (with bac)
                 this.ui.showProgress(2, 3, 'Calcul des recommandations');
+                this.performanceMetrics.poraCallTime = performance.now();
+                
                 try {
                     const poraSharedPayload = {
                         user_id: this.quiz.getUserId(),
@@ -372,125 +616,194 @@ class OrientationApp {
                         field_scores: this.proaResult?.field_scores || {},
                         budget_preference: this.quiz.getBudgetPreference(),
                         quiz_type: 'orientation',
-                        user_type: this.userProfile?.user_type || sessionStorage.getItem('user-role') || 'bachelier'
+                        user_type: this.userProfile?.user_type || sessionStorage.getItem('user-role') || 'bachelier',
+                        bac_code: this.quiz.getBacType()
                     };
 
-                    const poraPayload = {
-                        ...poraSharedPayload,
-                        user_id: this.quiz.getUserId(),
-                        profile_id: this.profileId,  // 🔗 Traçabilité vers le profil PROA
-                        recommended_fields: recommendedFields,
-                        quiz_type: 'orientation'
-                    };
-
-                    const poraResult = await this.api.callPoraService('universites', poraPayload);
-                    this.logger.info('✅ PORA universities result:', poraResult);
-                    universities = await this.api.strictFilterPoraRecommendations(
-                        'universites',
-                        poraResult.universites || [],
-                        recommendedFields
-                    );
-                    this.logger.info(`✅ Got ${universities.length} strict university recommendations from PORA`);
-
-                    // Appeler PORA pour les centres aussi
-                    const poraCentresPayload = {
-                        ...poraSharedPayload,
-                        user_id: this.quiz.getUserId(),
-                        profile_id: this.profileId,
-                        recommended_fields: recommendedFields,
-                        quiz_type: 'orientation'
-                    };
-
-                    const poraCentresResult = await this.api.callPoraService('centres', poraCentresPayload);
-                    this.logger.info('✅ PORA centres result:', poraCentresResult);
-
-                    centres = await this.api.strictFilterPoraRecommendations(
-                        'centres',
-                        poraCentresResult.centres || [],
-                        recommendedFields
-                    );
-                    this.logger.info(`✅ Got ${centres.length} strict centre recommendations from PORA`);
-
+                    // Parallel calls for better performance
+                    const [poraUnivResult, poraCentreResult] = await Promise.allSettled([
+                        this.api.callPoraService('universites', poraSharedPayload, this.quiz.getBacType()),
+                        this.api.callPoraService('centres', poraSharedPayload, this.quiz.getBacType())
+                    ]);
+                    
+                    this.performanceMetrics.poraCallDuration = performance.now() - this.performanceMetrics.poraCallTime;
+                    this.trackPerformance('pora_call', this.performanceMetrics.poraCallDuration);
+                    
+                    if (poraUnivResult.status === 'fulfilled') {
+                        universities = await this.api.strictFilterPoraRecommendations(
+                            'universites',
+                            poraUnivResult.value.universites || [],
+                            recommendedFields
+                        );
+                    }
+                    
+                    if (poraCentreResult.status === 'fulfilled') {
+                        centres = await this.api.strictFilterPoraRecommendations(
+                            'centres',
+                            poraCentreResult.value.centres || [],
+                            recommendedFields
+                        );
+                    }
+                    
+                    this.logger.info(`✅ PORA completed: ${universities.length} universities, ${centres.length} centres`);
+                    
                 } catch (error) {
                     this.logger.warn('⚠️ Failed to get PORA recommendations:', error);
                     universities = [];
                     centres = [];
-                    // Continue gracefully - show results without recommendations
                 }
             }
 
-            // Step 3: Prepare final result data
+            // Step 3: Prepare final result with bac insights
             const topField = coherentFields[0] || this.proaResult?.recommended_fields?.[0];
             const coverage = this.resolveCoverage();
+            const bacInfo = this.quiz.getBacType() && this.api ? this.api.getBacInfo(this.quiz.getBacType()) : null;
+            
             const resultData = {
                 title: topField?.field_name || 'Profil Unique',
                 description: topField?.reason || 'Votre profil d\'orientation a été calculé.',
-                aiInsight: this.buildAiInsight(topField, recommendedFields, coverage),
+                aiInsight: this.buildAiInsight(topField, recommendedFields, coverage, bacInfo),
                 parentBudget: this.quiz.getBudgetAdvice(),
                 coverage,
+                bac_info: bacInfo,
                 recommendations: {
                     top_fields: recommendedFields.slice(0, 5),
                     top_field_details: coherentFields.slice(0, 5),
                     universities,
                     centres
                 },
-                dominantCluster: recommendationDecision.dominantCluster
+                dominantCluster: recommendationDecision.dominantCluster,
+                performanceMetrics: {
+                    totalTime: performance.now() - submitStartTime,
+                    proaTime: this.performanceMetrics.proaCallDuration,
+                    poraTime: this.performanceMetrics.poraCallDuration
+                }
             };
 
-            // Cache results for offline use
+            // Cache results
             this.api.cacheResults(this.quiz.getUserId(), {
                 proaResult: this.proaResult,
                 resultData,
-                answers: this.quiz.getAnswers()
+                answers: this.quiz.getAnswers(),
+                timestamp: Date.now()
             });
 
-            // Step 4: Display final results (with REAL data, not incomplete!)
-            this.logger.info('🎯 Final resultData to render:', resultData);
-            this.logger.info('🏫 Universities data:', resultData.recommendations?.universities);
-            this.logger.info('🏢 Centres data:', resultData.recommendations?.centres);
+            // Track completion
+            this.trackEvent('quiz_completed', {
+                total_time_ms: performance.now() - (this.performanceMetrics.quizStartTime || performance.now()),
+                recommended_fields_count: recommendedFields.length,
+                bac_used: !!this.quiz.getBacType()
+            });
 
+            // Display results
+            this.logger.info('🎯 Final resultData to render:', resultData);
             this.ui.renderResults(resultData);
 
         } catch (error) {
             this.logger.error('❌ Critical error in submitAndShowResults:', error);
-            this.ui.showError(
-                'Une erreur critique s\'est produite. Veuillez réessayer.',
-                () => this.submitAndShowResults()
-            );
+            this.trackEvent('quiz_error', { error: error.message });
+            if (this.ui) {
+                this.ui.showError(
+                    'Une erreur critique s\'est produite. Veuillez réessayer.',
+                    () => this.submitAndShowResults()
+                );
+            }
         }
     }
 
     /**
-     * Restart the application
+     * Generate offline PROA result (NOUVEAU)
      */
-    restart() {
-        this.logger.info('🔄 Restarting application...');
-        this.quiz.reset();
-        this.proaResult = null;
-        this.poraResult = null;
-        this.pendingRole = null;
-        this.ui.showWelcome();
+    generateOfflineProaResult() {
+        if (!this.quiz) {
+            return {
+                recommended_fields: [],
+                field_scores: {},
+                confidence: 0.3,
+                offline_mode: true
+            };
+        }
+        
+        const answers = this.quiz.getAnswers();
+        const answerValues = Object.values(answers);
+        const avgScore = answerValues.length > 0 ? answerValues.reduce((a, b) => a + b, 0) / answerValues.length : 0.5;
+        
+        return {
+            recommended_fields: [
+                { field_name: "Informatique", score: avgScore * 0.8, reason: "Analyse hors ligne" },
+                { field_name: "Commerce", score: avgScore * 0.6, reason: "Analyse hors ligne" }
+            ],
+            field_scores: {},
+            confidence: 0.5,
+            offline_mode: true
+        };
     }
 
-    inferClusterFromFieldName(fieldName = '') {
-        const normalized = String(fieldName).toLowerCase();
+    /**
+     * Build AI insight with bac integration (AMÉLIORÉ)
+     */
+    buildAiInsight(topField, recommendedFields = [], coverage = null, bacInfo = null) {
+        const fieldName = topField?.field_name || recommendedFields?.[0] || 'ton orientation';
+        const score = topField?.score || topField?.confidence || null;
+        const bacMatchScore = Number(topField?.bac_match_score ?? topField?.bac_score ?? 0);
+        const coverageSuffix = Number.isFinite(coverage)
+            ? ` Couverture des réponses: ${Math.round(coverage * 100)}%.`
+            : '';
 
-        if (/(reseau|telecom|informatique|logiciel|data|cyber|ia|intelligence artificielle)/.test(normalized)) {
-            return 'informatique';
-        }
-        if (/(droit|juridique|justice|penal|public|prive|diplomatie|politique)/.test(normalized)) {
-            return 'droit';
-        }
-        if (/(compta|finance|gestion|marketing|commerce|business|logistique)/.test(normalized)) {
-            return 'business';
-        }
-        if (/(medec|sante|pharma|infirm)/.test(normalized)) {
-            return 'sante';
+        // Bac-specific insight
+        let bacSuffix = '';
+        if (bacInfo) {
+            if (bacMatchScore >= 0.7) {
+                bacSuffix = ` Ton bac ${bacInfo.code} (${bacInfo.label}) est particulièrement bien adapté à cette orientation.`;
+            } else if (bacInfo.boost > 1) {
+                bacSuffix = ` Ton bac ${bacInfo.code} te donne un bonus de ${Math.round((bacInfo.boost - 1) * 100)}% pour les filières techniques.`;
+            } else {
+                bacSuffix = ` Avec ton bac ${bacInfo.code}, explore bien toutes les options avant de choisir.`;
+            }
         }
 
-        return 'unknown';
+        if (score && Number(score) >= 0.75) {
+            return `Ton profil montre une forte cohérence autour de ${fieldName}, avec un vrai potentiel d'analyse et d'initiative.${bacSuffix}${coverageSuffix}`;
+        }
+
+        if (bacMatchScore >= 0.7) {
+            return `Ton profil garde plusieurs options ouvertes, mais ${fieldName} ressort avec une bonne cohérence.${bacSuffix}${coverageSuffix}`;
+        }
+
+        if (recommendedFields.length >= 3) {
+            return `Ton profil combine curiosité, adaptation et sens de progression. ${fieldName} ressort comme une piste solide.${bacSuffix}${coverageSuffix}`;
+        }
+
+        return `Ton profil montre une forte capacité d'analyse et une progression claire vers ${fieldName}.${bacSuffix}${coverageSuffix}`;
     }
 
+    /**
+     * Track performance metric (NOUVEAU)
+     */
+    trackPerformance(metricName, durationMs) {
+        if (window.gtag && window.gtag) {
+            window.gtag('event', 'performance', {
+                event_category: 'app_performance',
+                event_label: metricName,
+                value: Math.round(durationMs)
+            });
+        }
+        this.logger.debug(`📊 Performance: ${metricName} = ${durationMs.toFixed(0)}ms`);
+    }
+
+    /**
+     * Track user event (NOUVEAU)
+     */
+    trackEvent(eventName, eventParams = {}) {
+        if (window.gtag && window.gtag) {
+            window.gtag('event', eventName, eventParams);
+        }
+        this.logger.debug(`📊 Event: ${eventName}`, eventParams);
+    }
+
+    /**
+     * Resolve recommendation decision with cluster detection
+     */
     resolveRecommendationDecision(proaResult) {
         const fields = Array.isArray(proaResult?.recommended_fields)
             ? [...proaResult.recommended_fields]
@@ -532,6 +845,31 @@ class OrientationApp {
         };
     }
 
+    /**
+     * Infer cluster from field name
+     */
+    inferClusterFromFieldName(fieldName = '') {
+        const normalized = String(fieldName).toLowerCase();
+
+        if (/(reseau|telecom|informatique|logiciel|data|cyber|ia|intelligence artificielle)/.test(normalized)) {
+            return 'informatique';
+        }
+        if (/(droit|juridique|justice|penal|public|prive|diplomatie|politique)/.test(normalized)) {
+            return 'droit';
+        }
+        if (/(compta|finance|gestion|marketing|commerce|business|logistique)/.test(normalized)) {
+            return 'business';
+        }
+        if (/(medec|sante|pharma|infirm)/.test(normalized)) {
+            return 'sante';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Resolve coverage from result
+     */
     resolveCoverage() {
         const breakdownCoverage = Number(
             this.proaResult?.confidence_breakdown?.question_coverage?.score
@@ -546,6 +884,9 @@ class OrientationApp {
         return Math.min(1, answeredQuestions / Math.max(totalQuestions, 1));
     }
 
+    /**
+     * Get field confidence score
+     */
     getFieldConfidenceScore(field = {}) {
         const rawScore = Number(field.decision_score ?? field.score ?? field.confidence ?? 0);
         if (!Number.isFinite(rawScore)) {
@@ -555,32 +896,32 @@ class OrientationApp {
         return rawScore > 1 ? rawScore / 100 : rawScore;
     }
 
-    buildAiInsight(topField, recommendedFields = [], coverage = null) {
-        const fieldName = topField?.field_name || recommendedFields?.[0] || 'ton orientation';
-        const score = topField?.score || topField?.confidence || null;
-        const bacMatchScore = Number(topField?.bac_match_score ?? topField?.bac_score ?? 0);
-        const coverageSuffix = Number.isFinite(coverage)
-            ? ` Couverture des reponses: ${Math.round(coverage * 100)}%.`
-            : '';
-
-        if (score && Number(score) >= 0.75) {
-            const bacSuffix = bacMatchScore >= 0.7
-                ? ` La compatibilite avec ton bac renforce aussi cette piste (${Math.round(bacMatchScore * 100)}%).`
-                : '';
-            return `Ton profil montre une forte coherence autour de ${fieldName}, avec un vrai potentiel d analyse et d initiative.${bacSuffix}${coverageSuffix}`;
+    /**
+     * Restart the application
+     */
+    restart() {
+        this.logger.info('🔄 Restarting application...');
+        if (this.quiz) {
+            this.quiz.reset();
         }
-
-        if (bacMatchScore >= 0.7) {
-            return `Ton profil garde plusieurs options ouvertes, mais ${fieldName} ressort avec une bonne coherence et une compatibilite bac solide (${Math.round(bacMatchScore * 100)}%).${coverageSuffix}`;
+        this.proaResult = null;
+        this.poraResult = null;
+        this.pendingRole = null;
+        this.performanceMetrics = {
+            appStartTime: performance.now(),
+            initTime: 0,
+            quizStartTime: null,
+            quizEndTime: null,
+            proaCallTime: null,
+            proaCallDuration: 0,
+            poraCallTime: null,
+            poraCallDuration: 0
+        };
+        if (this.ui) {
+            this.ui.showWelcome();
         }
-
-        if (recommendedFields.length >= 3) {
-            return `Ton profil combine curiosite, adaptation et sens de progression. ${fieldName} ressort comme une piste solide parmi plusieurs options prometteuses.${coverageSuffix}`;
-        }
-
-        return `Ton profil montre une forte capacite d analyse et une progression claire vers ${fieldName}.${coverageSuffix}`;
+        this.trackEvent('app_restart', {});
     }
-
 
     /**
      * Get current state (for debugging)
@@ -588,11 +929,13 @@ class OrientationApp {
     getState() {
         return {
             initialized: this.initialized,
+            offlineMode: this.offlineMode,
             currentRole: this.quiz ? this.quiz.getCurrentRole() : null,
             bacType: this.quiz ? this.quiz.getBacType() : null,
             selectedAnswers: this.quiz ? this.quiz.getAnswers() : {},
             proaResult: this.proaResult,
             poraResult: this.poraResult,
+            performanceMetrics: this.performanceMetrics,
             servicesReady: {
                 api: !!this.api,
                 quiz: !!this.quiz,
@@ -602,45 +945,9 @@ class OrientationApp {
     }
 }
 
-/**
- * Simple Logger utility
- */
-class Logger {
-    constructor(level = 'info') {
-        this.level = level;
-        this.levels = { debug: 0, info: 1, warn: 2, error: 3 };
-    }
-
-    log(msg, ...args) {
-        if (this.levels[this.level] <= this.levels.info) {
-            console.log(msg, ...args);
-        }
-    }
-
-    info(msg, ...args) {
-        if (this.levels[this.level] <= this.levels.info) {
-            console.log(msg, ...args);
-        }
-    }
-
-    warn(msg, ...args) {
-        if (this.levels[this.level] <= this.levels.warn) {
-            console.warn(msg, ...args);
-        }
-    }
-
-    error(msg, ...args) {
-        if (this.levels[this.level] <= this.levels.error) {
-            console.error(msg, ...args);
-        }
-    }
-
-    debug(msg, ...args) {
-        if (this.levels[this.level] <= this.levels.debug) {
-            console.debug(msg, ...args);
-        }
-    }
-}
+// ============================================================
+// 🚀 BOOTSTRAP APPLICATION
+// ============================================================
 
 // Export classes
 if (typeof window !== 'undefined') {
@@ -648,12 +955,10 @@ if (typeof window !== 'undefined') {
     window.Logger = Logger;
 
     /**
-     * 🚀 BOOTSTRAP APPLICATION
-     * Wait for Flutter injection before initializing
+     * Bootstrap application - Wait for Flutter injection before initializing
      */
-
     const bootstrapApp = async () => {
-        console.log('🚀 Bootstrapping Orientation App...');
+        console.log('🚀 Bootstrapping Orientation App V2...');
 
         // Create app instance
         const app = new OrientationApp();
@@ -661,14 +966,15 @@ if (typeof window !== 'undefined') {
         app.setupEventListeners();
 
         /**
-         * 🔥 WAIT FOR FLUTTER INJECTION
+         * Notify Flutter that auth is ready
          */
-        if (window.FlutterBridge?.postMessage) {
+        if (window.FlutterBridge && window.FlutterBridge.postMessage) {
             window.FlutterBridge.postMessage('AUTH_READY');
         }
+
         await app.init();
 
-        console.log('✅ Orientation App fully initialized');
+        console.log('✅ Orientation App V2 fully initialized');
     };
 
     // Start app when DOM ready
@@ -678,4 +984,3 @@ if (typeof window !== 'undefined') {
         bootstrapApp();
     }
 }
-

@@ -1,21 +1,37 @@
 /**
- * UI Renderer Module
+ * UI Renderer Module - Version 2.0
  * Handles all DOM updates: questions, results, loaders, errors
+ * 
+ * AMÉLIORATIONS V2:
+ * - Support bac congolais
+ * - Affichage des scores de confiance
+ * - Animations améliorées
+ * - Accessibilité (ARIA labels)
+ * - Mode dégradé
  */
 
 class UIRenderer {
     constructor(config = {}) {
         this.logger = config.logger || console;
         this.onQuestionAnswered = config.onQuestionAnswered || (() => {});
+        this.onBacSelected = config.onBacSelected || (() => {});
         this.multiChoiceSelected = [];
         this.elements = this.findElements();
         this.enhanceLayout();
-        this.elements = this.findElements();
-        this.currentQuestion = null;
         this.setupDelegatedEvents();
+        this.currentQuestion = null;
+        this.animating = false;
+        this.bacInfo = null;
+        
+        // Animation durations
+        this.ANIMATION_DURATION = config.animationDuration || 400;
+        
+        // Initialize ARIA attributes
+        this.setupAccessibility();
     }
 
     setupDelegatedEvents() {
+        // Options grid events
         this.elements.optionsGrid?.addEventListener('click', (e) => {
             const option = e.target.closest('[data-quiz-option]');
             if (!option || !this.elements.optionsGrid.contains(option)) return;
@@ -31,7 +47,23 @@ class UIRenderer {
             }
 
             this.selectOption(option);
-            this.onQuestionAnswered(value);
+            
+            // Add haptic feedback
+            this.hapticFeedback();
+            
+            // Small delay for animation
+            setTimeout(() => {
+                this.onQuestionAnswered(value);
+            }, 50);
+        });
+        
+        // Bac selection events
+        document.addEventListener('click', (e) => {
+            const bacButton = e.target.closest('[data-bac-value]');
+            if (bacButton && this.elements.bacScreen?.classList.contains('active')) {
+                const bacValue = bacButton.getAttribute('data-bac-value');
+                this.handleBacSelection(bacValue);
+            }
         });
     }
 
@@ -56,14 +88,44 @@ class UIRenderer {
             loaderSpinner: document.getElementById('loaderSpinner'),
             loaderText: document.getElementById('loaderText'),
             errorMessage: document.getElementById('errorMessage'),
-            retryButton: document.getElementById('retryButton')
+            retryButton: document.getElementById('retryButton'),
+            confidenceBadge: document.getElementById('confidenceBadge'),
+            bacInfoContainer: document.getElementById('bacInfoContainer')
         };
+    }
+
+    setupAccessibility() {
+        // Add ARIA live regions for screen readers
+        const liveRegion = document.createElement('div');
+        liveRegion.setAttribute('aria-live', 'polite');
+        liveRegion.setAttribute('aria-atomic', 'true');
+        liveRegion.style.position = 'absolute';
+        liveRegion.style.width = '1px';
+        liveRegion.style.height = '1px';
+        liveRegion.style.padding = '0';
+        liveRegion.style.margin = '-1px';
+        liveRegion.style.overflow = 'hidden';
+        liveRegion.style.clip = 'rect(0, 0, 0, 0)';
+        liveRegion.style.border = '0';
+        document.body.appendChild(liveRegion);
+        this.liveRegion = liveRegion;
+    }
+
+    announceToScreenReader(message) {
+        if (this.liveRegion) {
+            this.liveRegion.textContent = message;
+            setTimeout(() => {
+                this.liveRegion.textContent = '';
+            }, 3000);
+        }
     }
 
     enhanceLayout() {
         this.ensureQuestionMeta();
         this.ensureQuestionCard();
         this.ensureAiInsight();
+        this.ensureConfidenceBadge();
+        this.ensureBacInfoContainer();
     }
 
     ensureQuestionMeta() {
@@ -71,6 +133,7 @@ class UIRenderer {
         if (!gameHeader || document.getElementById('currentStep')) return;
 
         const meta = document.createElement('div');
+        meta.className = 'question-meta';
         meta.style.fontSize = '0.75rem';
         meta.style.color = '#94a3b8';
         meta.style.marginBottom = '6px';
@@ -96,67 +159,170 @@ class UIRenderer {
 
         const insight = document.createElement('p');
         insight.id = 'aiInsight';
+        insight.className = 'ai-insight';
         insight.style.marginTop = '15px';
         insight.style.fontSize = '0.9rem';
         insight.style.opacity = '0.8';
         resultBox.appendChild(insight);
     }
 
+    ensureConfidenceBadge() {
+        const resultBox = document.querySelector('.result-box');
+        if (!resultBox || document.getElementById('confidenceBadge')) return;
+
+        const badge = document.createElement('div');
+        badge.id = 'confidenceBadge';
+        badge.className = 'confidence-badge';
+        badge.style.display = 'none';
+        badge.style.marginTop = '10px';
+        badge.style.padding = '8px 12px';
+        badge.style.borderRadius = '20px';
+        badge.style.fontSize = '0.75rem';
+        badge.style.textAlign = 'center';
+        resultBox.appendChild(badge);
+    }
+
+    ensureBacInfoContainer() {
+        const resultBox = document.querySelector('.result-box');
+        if (!resultBox || document.getElementById('bacInfoContainer')) return;
+
+        const container = document.createElement('div');
+        container.id = 'bacInfoContainer';
+        container.className = 'bac-info';
+        container.style.display = 'none';
+        container.style.marginTop = '10px';
+        container.style.padding = '8px 12px';
+        container.style.borderRadius = '8px';
+        container.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        container.style.fontSize = '0.8rem';
+        resultBox.appendChild(container);
+    }
+
     showWelcome() {
         this.logger.log('Showing welcome screen');
         this.hideAllScreens();
-        this.elements.welcomeScreen?.classList.add('active');
+        this.fadeIn(this.elements.welcomeScreen);
         if (this.elements.gameHeader) {
             this.elements.gameHeader.classList.remove('active');
             this.elements.gameHeader.style.opacity = '1';
         }
+        this.announceToScreenReader('Bienvenue sur l\'application d\'orientation');
     }
 
-    showBacSelection(selectedBacType = null) {
+    showBacSelection(availableCodes = ['C', 'D', 'A', 'G', 'E', 'H']) {
         this.logger.log('Showing bac selection screen');
         this.hideAllScreens();
-        this.elements.bacScreen?.classList.add('active');
-
+        
+        // Populate bac options
+        const bacContainer = document.getElementById('bacOptions');
+        if (bacContainer) {
+            bacContainer.innerHTML = '';
+            availableCodes.forEach(code => {
+                const button = document.createElement('button');
+                button.className = 'bac-option-btn';
+                button.setAttribute('data-bac-value', code);
+                button.setAttribute('role', 'button');
+                button.setAttribute('aria-label', `Série bac ${code}`);
+                button.innerHTML = `
+                    <span class="bac-code">${code}</span>
+                    <span class="bac-label">${this.getBacLabel(code)}</span>
+                `;
+                bacContainer.appendChild(button);
+            });
+        }
+        
+        this.fadeIn(this.elements.bacScreen);
         if (this.elements.gameHeader) {
             this.elements.gameHeader.classList.remove('active');
             this.elements.gameHeader.style.opacity = '1';
         }
+        this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat');
+    }
 
-        document.querySelectorAll('[data-bac-value]').forEach(button => {
-            const isSelected = selectedBacType && button.getAttribute('data-bac-value') === selectedBacType;
-            button.classList.toggle('selected', Boolean(isSelected));
+    getBacLabel(code) {
+        const labels = {
+            'C': 'Mathématiques',
+            'D': 'Sciences expérimentales',
+            'A': 'Lettres',
+            'A1': 'Lettres',
+            'A2': 'Lettres',
+            'G': 'Commerciale',
+            'G1': 'Commerciale',
+            'G2': 'Commerciale',
+            'E': 'Technique',
+            'F1': 'Technique',
+            'H': 'Informatique',
+            'H1': 'Informatique'
+        };
+        return labels[code] || 'Générale';
+    }
+
+    handleBacSelection(bacCode) {
+        this.logger.log(`Bac selected: ${bacCode}`);
+        
+        // Visual feedback
+        document.querySelectorAll('[data-bac-value]').forEach(btn => {
+            btn.classList.remove('selected');
+            if (btn.getAttribute('data-bac-value') === bacCode) {
+                btn.classList.add('selected');
+                this.hapticFeedback();
+            }
         });
-
-        this.scrollToTop();
+        
+        // Call callback
+        this.onBacSelected(bacCode);
     }
 
     showQuiz(role) {
         this.logger.log(`Showing quiz screen (${role})`);
         this.hideAllScreens();
-        this.elements.quizScreen?.classList.add('active');
+        this.fadeIn(this.elements.quizScreen);
         this.elements.gameHeader?.classList.add('active');
 
         if (this.elements.levelName) {
-            this.elements.levelName.innerText = role === 'student'
-                ? 'Analyse de ton profil'
-                : 'Lecture du profil famille';
+            const roleText = role === 'student' ? 'Analyse de ton profil' : 'Lecture du profil famille';
+            this.elements.levelName.innerText = roleText;
         }
+        
+        this.announceToScreenReader('Début du questionnaire d\'orientation');
     }
 
     showResults() {
         this.logger.log('Showing results screen');
         this.hideAllScreens();
-        this.elements.resultScreen?.classList.add('active');
+        this.fadeIn(this.elements.resultScreen);
 
         if (this.elements.gameHeader) {
             this.elements.gameHeader.style.opacity = '0.3';
         }
+        
+        this.announceToScreenReader('Calcul du profil terminé. Voici vos résultats.');
     }
 
     hideAllScreens() {
         ['welcomeScreen', 'bacScreen', 'quizScreen', 'resultScreen'].forEach(id => {
-            this.elements[id]?.classList.remove('active');
+            if (this.elements[id]) {
+                this.elements[id].style.display = 'none';
+                this.elements[id].classList.remove('active');
+            }
         });
+    }
+
+    fadeIn(element) {
+        if (!element) return;
+        element.style.display = 'block';
+        element.style.opacity = '0';
+        element.style.transition = `opacity ${this.ANIMATION_DURATION}ms ease`;
+        
+        requestAnimationFrame(() => {
+            element.style.opacity = '1';
+        });
+    }
+
+    hapticFeedback() {
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(10);
+        }
     }
 
     renderQuestion(question) {
@@ -183,45 +349,50 @@ class UIRenderer {
 
         const grid = this.elements.optionsGrid;
         if (grid) {
-            grid.innerHTML = '';
-
-            // 🔥 RENDER ACCORDING TO QUESTION TYPE
-            const questionType = question.type || 'likert';
-            switch (questionType) {
-                case 'likert':
-                    this.renderLikert(question, grid);
-                    this.hideMultiChoiceSubmit();
-                    break;
-                case 'single_choice':
-                case 'scenario':
-                    this.renderSingleChoice(question, grid);
-                    this.hideMultiChoiceSubmit();
-                    break;
-                case 'multi_choice':
-                    this.renderMultiChoice(question, grid);
-                    this.showMultiChoiceSubmit();
-                    break;
-                case 'scale':
-                    this.renderScale(question, grid);
-                    this.hideMultiChoiceSubmit();
-                    break;
-                default:
-                    this.renderLikert(question, grid);
-                    this.hideMultiChoiceSubmit();
-            }
+            // Fade out animation
+            grid.style.opacity = '0';
+            grid.style.transition = 'opacity 150ms ease';
+            
+            setTimeout(() => {
+                grid.innerHTML = '';
+                this.renderQuestionByType(question, grid);
+                grid.style.opacity = '1';
+            }, 150);
         }
 
         this.updateProgress(question.step, question.total);
     }
 
-    // 🔥 LIKERT SCALE - Existing style
+    renderQuestionByType(question, grid) {
+        const questionType = question.type || 'likert';
+        
+        switch (questionType) {
+            case 'likert':
+                this.renderLikert(question, grid);
+                this.hideMultiChoiceSubmit();
+                break;
+            case 'single_choice':
+            case 'scenario':
+                this.renderSingleChoice(question, grid);
+                this.hideMultiChoiceSubmit();
+                break;
+            case 'multi_choice':
+                this.renderMultiChoice(question, grid);
+                this.showMultiChoiceSubmit();
+                break;
+            case 'scale':
+                this.renderScale(question, grid);
+                this.hideMultiChoiceSubmit();
+                break;
+            default:
+                this.renderLikert(question, grid);
+                this.hideMultiChoiceSubmit();
+        }
+    }
+
     renderLikert(question, grid) {
         (question.o || []).forEach(option => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.type = 'button';
-            btn.dataset.quizOption = 'single';
-            btn.dataset.value = option.v;
+            const btn = this.createOptionButton(option, 'single');
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
@@ -230,27 +401,9 @@ class UIRenderer {
         });
     }
 
-    // 🔥 Method to handle option selection for Likert scale
-    selectOption(selectedBtn) {
-        // Remove selected class from all buttons in the same grid
-        const grid = selectedBtn.parentElement;
-        if (grid) {
-            grid.querySelectorAll('[data-quiz-option="single"].selected').forEach(btn => {
-                btn.classList.remove('selected');
-            });
-        }
-        // Add selected class to the clicked button
-        selectedBtn.classList.add('selected');
-    }
-
-    // 🔥 SINGLE CHOICE - Stylized card buttons
     renderSingleChoice(question, grid) {
         (question.o || []).forEach(option => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.type = 'button';
-            btn.dataset.quizOption = 'single';
-            btn.dataset.value = option.v;
+            const btn = this.createOptionButton(option, 'single');
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
@@ -259,18 +412,13 @@ class UIRenderer {
         });
     }
 
-    // 🔥 MULTI CHOICE - Stylized toggle cards
     renderMultiChoice(question, grid) {
         const container = document.createElement('div');
         container.className = 'multi-choice-group';
         container.id = 'multiChoiceContainer';
         
         (question.o || []).forEach(option => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.type = 'button';
-            btn.dataset.quizOption = 'multi';
-            btn.dataset.value = option.v;
+            const btn = this.createOptionButton(option, 'multi');
             btn.innerHTML = `
                 <span class="option-emoji">${this.getEmoji(option.v, question.type)}</span>
                 <span class="option-label">${option.t}</span>
@@ -279,6 +427,73 @@ class UIRenderer {
         });
         
         grid.appendChild(container);
+    }
+
+    renderScale(question, grid) {
+        const container = document.createElement('div');
+        container.className = 'scale-group';
+        
+        const min = question.min ?? 0;
+        const max = question.max ?? 10;
+        const mid = Math.round((min + max) / 2);
+        
+        const labels = document.createElement('div');
+        labels.className = 'scale-labels';
+        labels.innerHTML = `
+            <span>${min}</span>
+            <span>${mid}</span>
+            <span>${max}</span>
+        `;
+        
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.className = 'scale-input';
+        input.min = min;
+        input.max = max;
+        input.value = mid;
+        input.setAttribute('aria-label', 'Sélectionnez une valeur');
+        
+        const valueDisplay = document.createElement('div');
+        valueDisplay.className = 'scale-value';
+        valueDisplay.innerText = mid;
+        
+        input.addEventListener('input', (e) => {
+            const value = e.target.value;
+            valueDisplay.innerText = value;
+            this.hapticFeedback();
+        });
+        
+        input.addEventListener('change', (e) => {
+            this.onQuestionAnswered(Number(e.target.value));
+        });
+        
+        container.appendChild(labels);
+        container.appendChild(input);
+        container.appendChild(valueDisplay);
+        grid.appendChild(container);
+    }
+
+    createOptionButton(option, type) {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.type = 'button';
+        btn.dataset.quizOption = type;
+        btn.dataset.value = option.v;
+        btn.setAttribute('role', 'button');
+        btn.setAttribute('aria-label', option.t);
+        return btn;
+    }
+
+    selectOption(selectedBtn) {
+        const grid = selectedBtn.parentElement;
+        if (grid) {
+            grid.querySelectorAll('[data-quiz-option="single"].selected').forEach(btn => {
+                btn.classList.remove('selected');
+                btn.setAttribute('aria-pressed', 'false');
+            });
+        }
+        selectedBtn.classList.add('selected');
+        selectedBtn.setAttribute('aria-pressed', 'true');
     }
 
     updateMultiChoiceValue(question) {
@@ -298,13 +513,16 @@ class UIRenderer {
         const submitBtn = document.getElementById('multiChoiceSubmit');
         if (submitBtn) {
             submitBtn.style.display = 'block';
-            submitBtn.querySelector('button').onclick = () => {
-                if (this.multiChoiceSelected && this.multiChoiceSelected.length > 0) {
-                    // Submit array as JSON string or comma-separated
-                    this.onQuestionAnswered(JSON.stringify(this.multiChoiceSelected));
-                    this.multiChoiceSelected = [];
-                }
-            };
+            const button = submitBtn.querySelector('button');
+            if (button) {
+                button.onclick = () => {
+                    if (this.multiChoiceSelected && this.multiChoiceSelected.length > 0) {
+                        this.hapticFeedback();
+                        this.onQuestionAnswered(JSON.stringify(this.multiChoiceSelected));
+                        this.multiChoiceSelected = [];
+                    }
+                };
+            }
         }
     }
 
@@ -314,56 +532,11 @@ class UIRenderer {
         this.multiChoiceSelected = [];
     }
 
-    // 🔥 SCALE/SLIDER - Range input
-    renderScale(question, grid) {
-        const container = document.createElement('div');
-        container.className = 'scale-group';
-        
-        // Get min/max from question metadata or defaults
-        const min = question.min ?? 0;
-        const max = question.max ?? 10;
-        const mid = Math.round((min + max) / 2);
-        
-        // Labels
-        const labels = document.createElement('div');
-        labels.className = 'scale-labels';
-        labels.innerHTML = `
-            <span>${min}</span>
-            <span>${mid}</span>
-            <span>${max}</span>
-        `;
-        
-        // Slider
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.className = 'scale-input';
-        input.min = min;
-        input.max = max;
-        input.value = mid;
-        
-        // Value display
-        const valueDisplay = document.createElement('div');
-        valueDisplay.className = 'scale-value';
-        valueDisplay.innerText = mid;
-        
-        input.addEventListener('input', (e) => {
-            const value = e.target.value;
-            valueDisplay.innerText = value;
-            // Auto-submit on change
-            this.onQuestionAnswered(Number(value));
-        });
-        
-        container.appendChild(labels);
-        container.appendChild(input);
-        container.appendChild(valueDisplay);
-        
-        grid.appendChild(container);
-    }
-
     updateProgress(current, total) {
         const percentage = (current / total) * 100;
         if (this.elements.progressFill) {
             this.elements.progressFill.style.width = percentage + '%';
+            this.elements.progressFill.setAttribute('aria-valuenow', percentage);
         }
     }
 
@@ -378,6 +551,7 @@ class UIRenderer {
         }
 
         this.hideError();
+        this.announceToScreenReader(message);
     }
 
     hideLoader() {
@@ -386,7 +560,7 @@ class UIRenderer {
         }
     }
 
-    showError(message = 'Une erreur s est produite. Veuillez reessayer.', onRetry = null) {
+    showError(message = 'Une erreur s\'est produite. Veuillez réessayer.', onRetry = null) {
         this.logger.error(`Showing error: ${message}`);
         this.hideLoader();
 
@@ -399,6 +573,8 @@ class UIRenderer {
             this.elements.retryButton.style.display = 'block';
             this.elements.retryButton.onclick = onRetry;
         }
+        
+        this.announceToScreenReader(`Erreur: ${message}`);
     }
 
     hideError() {
@@ -410,56 +586,137 @@ class UIRenderer {
         }
     }
 
-    renderResults(resultData) {
-        this.logger.log('Rendering results:', resultData);
+    showWarning(message) {
+        this.logger.warn(`Warning: ${message}`);
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'warning-message';
+        warningDiv.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+        warningDiv.style.border = '1px solid #f59e0b';
+        warningDiv.style.borderRadius = '8px';
+        warningDiv.style.padding = '12px';
+        warningDiv.style.margin = '10px 0';
+        warningDiv.style.color = '#f59e0b';
+        warningDiv.style.fontSize = '0.85rem';
+        warningDiv.innerText = message;
+        
+        const container = document.querySelector('.result-box') || document.body;
+        container.appendChild(warningDiv);
+        
+        setTimeout(() => {
+            warningDiv.remove();
+        }, 5000);
+    }
 
-        // 🔥 LOG ULTRA IMPORTANT pour déboguer
-        console.log("🔥 FINAL DATA USED:", JSON.stringify(resultData, null, 2));
+    showSuccess(message) {
+        this.logger.log(`Success: ${message}`);
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+        successDiv.style.border = '1px solid #10b981';
+        successDiv.style.borderRadius = '8px';
+        successDiv.style.padding = '12px';
+        successDiv.style.margin = '10px 0';
+        successDiv.style.color = '#10b981';
+        successDiv.style.fontSize = '0.85rem';
+        successDiv.innerText = message;
+        
+        const container = document.querySelector('.result-box') || document.body;
+        container.appendChild(successDiv);
+        
+        setTimeout(() => {
+            successDiv.remove();
+        }, 3000);
+    }
 
-        // 🔥 Log spécifique aux recommandations
-        if (resultData.recommendations) {
-            console.log("🏫 Universities data:", resultData.recommendations.universities);
-            console.log("🏢 Centres data:", resultData.recommendations.centres);
+    showBacInfo(bacInfo) {
+        this.bacInfo = bacInfo;
+        if (this.elements.bacInfoContainer) {
+            this.elements.bacInfoContainer.style.display = 'block';
+            this.elements.bacInfoContainer.innerHTML = `
+                <strong>🎓 Bac ${bacInfo.code}</strong> - ${bacInfo.label}
+                ${bacInfo.boost > 1 ? `<span style="margin-left: 8px; color: #10b981;">+${Math.round((bacInfo.boost - 1) * 100)}%</span>` : ''}
+            `;
         }
+    }
+
+    showConfidenceBadge(confidence, reliabilityLabel) {
+        if (this.elements.confidenceBadge) {
+            this.elements.confidenceBadge.style.display = 'block';
+            const confidencePercent = Math.round(confidence * 100);
+            let color = '#ef4444';
+            let text = 'Faible confiance';
+            
+            if (confidence >= 0.85) {
+                color = '#10b981';
+                text = 'Très haute confiance';
+            } else if (confidence >= 0.7) {
+                color = '#f59e0b';
+                text = 'Haute confiance';
+            } else if (confidence >= 0.5) {
+                color = '#3b82f6';
+                text = 'Confiance modérée';
+            }
+            
+            this.elements.confidenceBadge.style.backgroundColor = `${color}20`;
+            this.elements.confidenceBadge.style.color = color;
+            this.elements.confidenceBadge.innerHTML = `
+                📊 Score de confiance: ${confidencePercent}% - ${text}
+                ${reliabilityLabel ? `<span style="font-size: 0.7rem;">(${reliabilityLabel})</span>` : ''}
+            `;
+        }
+    }
+
+    renderResults(resultData) {
+        this.logger.log('Rendering results V2:', resultData);
 
         this.hideLoader();
         this.hideError();
 
-        // 🔥 RESET CRITIQUE - Vide complètement l'ancien contenu
+        // Reset container
         if (this.elements.recommendationsContainer) {
             this.elements.recommendationsContainer.innerHTML = '';
         }
 
+        // Display confidence badge if available
+        if (resultData.confidence_score) {
+            this.showConfidenceBadge(resultData.confidence_score, resultData.reliability_label);
+        }
+
+        // Display bac info if available
+        if (resultData.bac_info) {
+            this.showBacInfo(resultData.bac_info);
+        }
+
+        // Main content
         if (this.elements.finalTitle) {
             this.elements.finalTitle.innerText = resultData.title || 'Profil Unique';
         }
         if (this.elements.finalDesc) {
             this.elements.finalDesc.innerText = resultData.description ||
-                'Votre profil d orientation a ete calcule avec vos reponses.';
+                'Votre profil d\'orientation a été calculé avec vos réponses.';
         }
         if (this.elements.aiInsight) {
             this.elements.aiInsight.innerText = resultData.aiInsight ||
-                'Ton profil montre une forte capacite d analyse et une belle progression dans tes choix.';
+                'Ton profil montre une forte capacité d\'analyse et une belle progression dans tes choix.';
         }
 
         if (resultData.parentBudget && this.elements.parentAddon) {
             this.elements.parentAddon.style.display = 'block';
-            this.elements.parentAddon.innerText = `Conseil strategique : ${resultData.parentBudget}`;
+            this.elements.parentAddon.innerText = `Conseil stratégique : ${resultData.parentBudget}`;
         } else if (this.elements.parentAddon) {
             this.elements.parentAddon.style.display = 'none';
-            this.elements.parentAddon.innerText = '';
         }
 
         if (resultData.recommendations) {
             this.renderRecommendations(resultData.recommendations);
         }
 
-        // 🔥 Force scroll to top pour éviter affichage ancien
         this.scrollToTop();
+        this.announceToScreenReader('Résultats affichés. ' + (resultData.aiInsight || ''));
     }
 
     renderRecommendations(recommendations) {
-        this.logger.log('🎯 Rendering recommendations:', recommendations); // DEBUG
+        this.logger.log('Rendering recommendations V2:', recommendations);
 
         if (!this.elements.recommendationsContainer) {
             this.logger.warn('Recommendations container not found');
@@ -468,285 +725,130 @@ class UIRenderer {
 
         let html = '';
 
-        // 🎯 AJOUT: Section des filières recommandées
+        // Top fields section
         const topFields = recommendations.top_field_details || recommendations.top_fields || [];
         if (topFields.length > 0) {
-            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🎯 Tes 5 meilleures filières</h3>';
-            html += '<div class="top-fields">';
+            html += `
+                <div class="recommendation-section">
+                    <h3 class="section-title">🎯 Tes meilleures filières</h3>
+                    <div class="top-fields-grid">
+            `;
+            
             topFields.slice(0, 5).forEach(field => {
-                const fieldName = typeof field === 'string'
-                    ? field
-                    : (field.field_name || field.name || 'Filiere');
-                const bacMatchScore = typeof field === 'object'
-                    ? Number(field.bac_match_score ?? field.bac_score)
-                    : NaN;
-                const bacBadge = Number.isFinite(bacMatchScore) && bacMatchScore >= 0.55
-                    ? ` <small>${Math.round(bacMatchScore * 100)}% bac</small>`
-                    : '';
-
-                html += `<span class="top-field-tag">${fieldName}${bacBadge}</span>`;
+                const fieldName = typeof field === 'string' ? field : (field.field_name || field.name || 'Filière');
+                const score = typeof field === 'object' ? (field.decision_score || field.score || 0) : 0;
+                const scorePercent = Math.round(score * 100);
+                const cluster = typeof field === 'object' ? field.cluster : null;
+                const clusterIcon = this.getClusterIcon(cluster);
+                
+                html += `
+                    <div class="field-card">
+                        <div class="field-name">${clusterIcon} ${fieldName}</div>
+                        <div class="field-score">
+                            <div class="score-bar" style="width: ${scorePercent}%"></div>
+                            <span class="score-value">${scorePercent}%</span>
+                        </div>
+                    </div>
+                `;
             });
-            html += '</div>';
+            
+            html += `</div></div>`;
         }
 
-        const recommendedFieldNames = topFields
-            .slice(0, 5)
-            .map(field => typeof field === 'string'
-                ? field
-                : (field.field_name || field.name || ''))
-            .filter(Boolean);
-
-        const compatibleUniversities = Array.isArray(recommendations.universities)
-            ? recommendations.universities
-                .map(uni => this.enrichRecommendationItem(uni, recommendedFieldNames))
-                .filter(Boolean)
-                .filter(uni => (uni.compatibility_score ?? 0) >= 0.9) // 🔥 SEULEMENT >= 90% correspondance
-            : [];
-
-        if (compatibleUniversities.length > 0) {
-            const sortedUniversities = [...compatibleUniversities].sort((a, b) => {
-                const scoreDelta = (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0);
-                if (scoreDelta !== 0) return scoreDelta;
-                return (b.matching_fields_count ?? 0) - (a.matching_fields_count ?? 0);
-            });
-
-            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏫 Où étudier ça</h3>';
-            html += '<ul class="rec-list">';
-
-            sortedUniversities.forEach((uni) => {
+        // Universities section
+        const universities = Array.isArray(recommendations.universities) ? recommendations.universities : [];
+        if (universities.length > 0) {
+            html += `
+                <div class="recommendation-section">
+                    <h3 class="section-title">🏫 Où étudier</h3>
+                    <div class="institutions-list">
+            `;
+            
+            universities.slice(0, 10).forEach(uni => {
                 const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
                 const matchCount = uni.matching_fields_count || 0;
-                const totalFields = uni.total_recommended_fields || recommendedFieldNames.length || 0;
-                const feeLabel = this.formatFeeLabel(uni);
-                const metaLabel = feeLabel || `${matchCount}/${totalFields} filières`;
+                const totalFields = uni.total_recommended_fields || topFields.length || 0;
+                const compatibility = uni.compatibility_score || (matchCount / Math.max(totalFields, 1));
+                const compatibilityPercent = Math.round(compatibility * 100);
+                
                 html += `
-                    <li class="rec-list-item">
-                        <span class="rec-list-name">${uniName}</span>
-                        <span class="rec-list-meta">${metaLabel}</span>
-                    </li>
+                    <div class="institution-card" data-compatibility="${compatibilityPercent}">
+                        <div class="institution-name">${uniName}</div>
+                        <div class="institution-meta">
+                            <span class="match-badge ${this.getMatchBadgeClass(compatibility)}">
+                                ${compatibilityPercent}% compatible
+                            </span>
+                            ${matchCount > 0 ? `<span class="fields-count">📚 ${matchCount}/${totalFields} filières</span>` : ''}
+                        </div>
+                    </div>
                 `;
             });
-
-            html += '</ul>';
-        } else if (recommendations.universities) {
-            // 🔴 AUCUNE UNIVERSITÉ NE CORRESPOND
-            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏫 Où étudier ça</h3>';
-            html += '<div style="text-align: center; opacity: 0.7; padding: 20px;">';
-            html += '<p style="margin: 0; color: #94a3b8;">Aucune université ne propose ces filières pour le moment.</p>';
-            html += '<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #64748b;">Consultez un conseiller d\'orientation pour explorer d\'autres options.</p>';
-            html += '</div>';
+            
+            html += `</div></div>`;
+        } else {
+            html += `
+                <div class="recommendation-section">
+                    <h3 class="section-title">🏫 Où étudier</h3>
+                    <div class="empty-state">
+                        <p>Aucune université ne propose ces filières pour le moment.</p>
+                        <small>Consultez un conseiller d'orientation pour explorer d'autres options.</small>
+                    </div>
+                </div>
+            `;
         }
 
-        const compatibleCentres = Array.isArray(recommendations.centres)
-            ? recommendations.centres
-                .map(centre => this.enrichRecommendationItem(centre, recommendedFieldNames))
-                .filter(Boolean)
-                .sort((a, b) => (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0))
-            : [];
-
-        // 🔥 CORRECTION: Afficher les centres même sans correspondance parfaite
-        // Si aucun centre n'a de correspondance exacte, afficher les 3 meilleurs par score de compatibilité
-        const centresToShow = compatibleCentres.length > 0
-            ? compatibleCentres.filter(centre => centre.matching_fields_count > 0)
-            : compatibleCentres.slice(0, 3); // Afficher les 3 meilleurs centres même sans correspondance
-
-        if (compatibleCentres.length > 0) {
-            const sortedCentres = [...compatibleCentres].sort((a, b) => {
-                const scoreDelta = (b.compatibility_score ?? 0) - (a.compatibility_score ?? 0);
-                if (scoreDelta !== 0) return scoreDelta;
-                return (b.matching_fields_count ?? 0) - (a.matching_fields_count ?? 0);
-            });
-
-            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
-            html += '<ul class="rec-list">';
-
-            sortedCentres.forEach((centre) => {
+        // Centres section
+        const centres = Array.isArray(recommendations.centres) ? recommendations.centres : [];
+        if (centres.length > 0) {
+            html += `
+                <div class="recommendation-section">
+                    <h3 class="section-title">🏢 Formations professionnelles</h3>
+                    <div class="institutions-list">
+            `;
+            
+            centres.slice(0, 5).forEach(centre => {
                 const centreName = centre.target_name || centre.nom || centre.name || 'Inconnu';
                 const matchCount = centre.matching_fields_count || 0;
-                const totalFields = centre.total_recommended_fields || recommendedFieldNames.length || 0;
-                const hasPerfectMatch = matchCount > 0;
-                const metaLabel = hasPerfectMatch
-                    ? `${matchCount}/${totalFields} filières`
-                    : 'Formation généraliste';
+                
                 html += `
-                    <li class="rec-list-item ${hasPerfectMatch ? '' : 'is-secondary'}">
-                        <span class="rec-list-name">${centreName}</span>
-                        <span class="rec-list-meta">${metaLabel}</span>
-                    </li>
+                    <div class="institution-card is-centre">
+                        <div class="institution-name">${centreName}</div>
+                        <div class="institution-meta">
+                            ${matchCount > 0 ? `<span class="match-badge">📚 ${matchCount} filières</span>` : '<span class="match-badge neutral">Formation généraliste</span>'}
+                        </div>
+                    </div>
                 `;
             });
-
-            html += '</ul>';
-        } else if (recommendations.centres) {
-            // 🔴 AUCUN CENTRE NE CORRESPOND
-            html += '<h3 style="color: var(--accent); margin-top: 20px; margin-bottom: 15px;">🏢 Formations rapides</h3>';
-            html += '<div style="text-align: center; opacity: 0.7; padding: 20px;">';
-            html += '<p style="margin: 0; color: #94a3b8;">Aucune formation courte ne propose ces filières pour le moment.</p>';
-            html += '<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #64748b;">Les centres se spécialisent souvent dans d\'autres domaines.</p>';
-            html += '</div>';
+            
+            html += `</div></div>`;
         }
 
         if (!html) {
-            html = '<p style="color: #94a3b8; text-align: center;">Aucune recommandation disponible pour le moment.</p>';
+            html = '<div class="empty-state"><p>Aucune recommandation disponible pour le moment.</p></div>';
         }
 
         this.elements.recommendationsContainer.innerHTML = html;
     }
 
-    enrichRecommendationItem(item, recommendedFields = []) {
-        if (!item) return null;
-
-        const normalizedRecommendedFields = recommendedFields
-            .map(field => this.normalizeFieldName(field))
-            .filter(Boolean);
-
-        const rawMatchedFields = Array.isArray(item.matched_fields)
-            ? item.matched_fields
-            : [];
-        const rawRealFields = Array.isArray(item.real_fields)
-            ? item.real_fields
-            : [];
-
-        const matchedFromData = [];
-        const matchedSet = new Set();
-
-        if (rawRealFields.length > 0 && normalizedRecommendedFields.length > 0) {
-            rawRealFields.forEach(field => {
-                const trimmedField = String(field || '').trim();
-                const normalizedRealField = this.normalizeFieldName(trimmedField);
-                if (!normalizedRealField || !normalizedRecommendedFields.includes(normalizedRealField)) {
-                    return;
-                }
-
-                if (!matchedSet.has(normalizedRealField)) {
-                    matchedSet.add(normalizedRealField);
-                    matchedFromData.push(trimmedField);
-                }
-            });
-        } else {
-            rawMatchedFields.forEach(field => {
-                const trimmedField = String(field || '').trim();
-                const normalizedMatchedField = this.normalizeFieldName(trimmedField);
-                if (!normalizedMatchedField || matchedSet.has(normalizedMatchedField)) {
-                    return;
-                }
-
-                matchedSet.add(normalizedMatchedField);
-                matchedFromData.push(trimmedField);
-            });
-        }
-
-        const uniqueMatchedFields = [];
-        const seenMatched = new Set();
-        matchedFromData.forEach(field => {
-            const normalized = this.normalizeFieldName(field);
-            if (!normalized || seenMatched.has(normalized)) return;
-            seenMatched.add(normalized);
-            uniqueMatchedFields.push(field);
-        });
-
-        const totalRecommendedFields = normalizedRecommendedFields.length
-            || Number(item.total_recommended_fields)
-            || 0;
-        const matchingFieldsCount = uniqueMatchedFields.length;
-        const compatibilityScore = totalRecommendedFields > 0
-            ? matchingFieldsCount / totalRecommendedFields
-            : (matchingFieldsCount > 0 ? 1 : 0);
-
-        return {
-            ...item,
-            matched_fields: uniqueMatchedFields,
-            matching_fields_count: matchingFieldsCount,
-            total_recommended_fields: totalRecommendedFields,
-            compatibility_score: compatibilityScore
+    getClusterIcon(cluster) {
+        const icons = {
+            'informatique': '💻',
+            'business': '💼',
+            'engineering': '⚙️',
+            'droit': '⚖️',
+            'social': '🤝',
+            'sante': '🏥',
+            'sciences': '🔬',
+            'arts_design': '🎨',
+            'agriculture': '🌾'
         };
+        return icons[cluster] || '📚';
     }
 
-    normalizeFieldName(value) {
-        return String(value || '')
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
-    formatFeeLabel(item) {
-        const price = Number(item?.min_monthly_price);
-        if (!Number.isFinite(price) || price <= 0) {
-            return '';
-        }
-
-        const currency = item?.fee_currency || 'XAF';
-        return `${Math.round(price).toLocaleString('fr-FR')} ${currency}/mois`;
-    }
-
-    normalizeItem(item) {
-        let filieres = [];
-        let matched = [];
-        let otherFields = [];
-
-        // ✅ PRIORITÉ AUX FILIÈRES RÉELLES DU CENTRE / université
-        if (Array.isArray(item.real_fields) && item.real_fields.length > 0) {
-            filieres = item.real_fields;
-        }
-        // ✅ MATCHED FIELDS = signal pour l'utilisateur (profil compatible)
-        if (Array.isArray(item.matched_fields) && item.matched_fields.length > 0) {
-            matched = item.matched_fields;
-        }
-        // ✅ BACKEND CAN SEND pre-computed other_fields
-        if (Array.isArray(item.other_fields) && item.other_fields.length > 0) {
-            otherFields = item.other_fields;
-        }
-
-        // 🔥 TEMP FIX: Si pas de vraies filières informatiques, ne pas afficher le centre
-        if (filieres.length === 0 && matched.length === 0) {
-            return null; // Le centre sera filtré
-        }
-
-        // Fallback si backend pas encore prêt
-        if (filieres.length === 0 && matched.length > 0) {
-            filieres = matched;
-        }
-
-        // Compute otherFields from real_fields when not provided explicitly
-        if (otherFields.length === 0 && filieres.length > 0 && matched.length > 0) {
-            const matchedSet = new Set(matched.map(f => f.trim().toLowerCase()));
-            otherFields = filieres.filter(f => {
-                const normalized = f.trim().toLowerCase();
-                return normalized && !matchedSet.has(normalized);
-            });
-        }
-
-        // Clean up values
-        filieres = filieres.filter(f => f && f.trim().length > 0).map(f => f.trim());
-        matched = matched.filter(f => f && f.trim().length > 0).map(f => f.trim());
-        otherFields = otherFields.filter(f => f && f.trim().length > 0).map(f => f.trim());
-
-        const result = {
-            name: item.target_name || item.nom || item.name || 'Inconnu',
-            filieres,
-            matched,
-            otherFields
-        };
-
-        console.log('✅ Normalized result:', result);
-        return result;
-    }
-
-    // 🎯 NEW: Get match label based on PORA score
-    getMatchLabel(score) {
-        if (score > 0.45) return "🔥 Excellent match";
-        if (score > 0.35) return "🎯 Bon match";
-        return "👍 Match correct";
-    }
-
-    // 🎯 NEW: Get strategic badge based on total fields (improved logic)
-    getStrategicBadge(totalFields) {
-        if (totalFields <= 10) return "🧠 École spécialisée";
-        if (totalFields >= 50) return "🌍 Grande université";
-        return ""; // No badge for medium-sized schools
+    getMatchBadgeClass(compatibility) {
+        if (compatibility >= 0.8) return 'high';
+        if (compatibility >= 0.6) return 'medium';
+        return 'low';
     }
 
     updateLoaderText(message) {
@@ -772,7 +874,8 @@ class UIRenderer {
             1: '💸',
             2: '💰',
             3: '🏦',
-            4: '🚀'
+            4: '🚀',
+            5: '🔥'
         };
 
         return map[value] || '✨';
@@ -784,8 +887,16 @@ class UIRenderer {
         const ratio = total > 0 ? current / total : 0;
 
         if (ratio <= 0.4) return 'Analyse de ton profil';
-        if (ratio <= 0.8) return 'Detection de tes forces';
+        if (ratio <= 0.8) return 'Détection de tes forces';
         return 'Projection de ton avenir';
+    }
+
+    showOfflineWarning() {
+        this.showWarning('Mode hors-ligne activé. Les recommandations peuvent être limitées.');
+    }
+
+    hideOfflineWarning() {
+        // Warning auto-disappears after 5 seconds
     }
 }
 

@@ -1,6 +1,13 @@
 /**
- * Quiz Service Module
+ * Quiz Service Module - Version 2.0
  * Handles quiz logic: loading, format mapping, response validation, scoring
+ * 
+ * AMÉLIORATIONS V2:
+ * - Support bac congolais complet
+ * - Validation améliorée des réponses
+ * - Cache des réponses utilisateur
+ * - Support questions multi-choice
+ * - Meilleure gestion des erreurs
  */
 
 class QuizService {
@@ -17,7 +24,32 @@ class QuizService {
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
         this.parentBudget = null;
         this.bacType = this.loadStoredBacType();
-        this.authenticatedUser = null; // Store authenticated user
+        this.authenticatedUser = null;
+        
+        // Nouveaux champs V2
+        this.responseCache = new Map();
+        this.questionTimestamps = new Map();
+        this.totalTimeSpent = 0;
+        this.quizStartTime = null;
+        
+        // Configuration bac congolais
+        this.BAC_CONFIG = {
+            availableCodes: ['C', 'D', 'A', 'A1', 'A2', 'G', 'G1', 'G2', 'E', 'F1', 'H', 'H1'],
+            tracks: {
+                'C': { name: 'Mathématiques', group: 'science', boost: 1.15 },
+                'D': { name: 'Sciences expérimentales', group: 'science', boost: 1.10 },
+                'A': { name: 'Lettres', group: 'humanities', boost: 1.10 },
+                'A1': { name: 'Lettres', group: 'humanities', boost: 1.10 },
+                'A2': { name: 'Lettres', group: 'humanities', boost: 1.10 },
+                'G': { name: 'Commerciale', group: 'business', boost: 1.15 },
+                'G1': { name: 'Commerciale', group: 'business', boost: 1.15 },
+                'G2': { name: 'Commerciale', group: 'business', boost: 1.15 },
+                'E': { name: 'Technique', group: 'technical', boost: 1.10 },
+                'F1': { name: 'Technique', group: 'technical', boost: 1.10 },
+                'H': { name: 'Informatique', group: 'informatics', boost: 1.20 },
+                'H1': { name: 'Informatique', group: 'informatics', boost: 1.20 }
+            }
+        };
     }
 
     /**
@@ -26,6 +58,11 @@ class QuizService {
     setAuthenticatedUser(user) {
         this.authenticatedUser = user;
         this.logger.log('✅ Authenticated user set in quiz service:', user?.id);
+        
+        // Load user's bac type if available
+        if (user?.user_metadata?.bac_code) {
+            this.setBacType(user.user_metadata.bac_code);
+        }
     }
 
     /**
@@ -33,9 +70,9 @@ class QuizService {
      */
     async initialize(questions) {
         try {
-            this.logger.log('🎯 Initializing quiz service...');
+            this.logger.log('🎯 Initializing quiz service V2...');
             
-            // Dédupliquer les questions par code pour éviter les doublons dans le quiz
+            // Dédupliquer les questions par code
             const uniqueQuestions = [];
             const seenCodes = new Set();
             for (const q of questions) {
@@ -44,24 +81,24 @@ class QuizService {
                     seenCodes.add(code);
                     uniqueQuestions.push(q);
                 } else {
-                    this.logger.warn(`Duplicate question code skipped during initialization: ${code}`);
+                    this.logger.warn(`Duplicate question code skipped: ${code}`);
                 }
             }
             
-            // Split questions by quiz_type field
+            // Split by quiz_type
             const studentQuestions = uniqueQuestions.filter(q => q.quiz_type !== 'parent');
             const parentQuestions = uniqueQuestions.filter(q => q.quiz_type === 'parent');
             
             this.questions.student = [
-                ...studentQuestions.slice(0, 10).map(q => this.formatQuestion(q)),
+                ...studentQuestions.slice(0, 12).map(q => this.formatQuestion(q)),
                 this.createBudgetQuestion()
             ];
             this.questions.parent = [
-                ...parentQuestions.slice(0, 5).map(q => this.formatQuestion(q)),
+                ...parentQuestions.slice(0, 6).map(q => this.formatQuestion(q)),
                 this.createBudgetQuestion()
             ];
             
-            this.logger.log(`✅ Quiz service ready: ${this.questions.student.length} student, ${this.questions.parent.length} parent questions`);
+            this.logger.log(`✅ Quiz ready: ${this.questions.student.length} student, ${this.questions.parent.length} parent questions`);
             
             return {
                 student: this.questions.student,
@@ -92,43 +129,37 @@ class QuizService {
      * Format question from DB structure to quiz format
      */
     formatQuestion(dbQuestion) {
-        const questionType = dbQuestion.type || dbQuestion.question_type;
-
-        // Handle different option formats from API
+        const questionType = dbQuestion.type || dbQuestion.question_type || 'likert';
         let options = [];
+
         if (dbQuestion.options && Array.isArray(dbQuestion.options)) {
-            options = dbQuestion.options.map(opt => {
+            options = dbQuestion.options.map((opt, idx) => {
                 let optionValue;
                 let optionText;
 
                 // Handle string format like "@{label=Text; value=1}"
                 if (typeof opt === 'string' && opt.startsWith('@{') && opt.endsWith('}')) {
-                    const content = opt.slice(2, -1); // Remove @{ and }
+                    const content = opt.slice(2, -1);
                     const parts = content.split(';').map(p => p.trim());
                     const labelPart = parts.find(p => p.startsWith('label='));
                     const valuePart = parts.find(p => p.startsWith('value='));
                     optionText = labelPart ? labelPart.split('=')[1] : opt;
-                    optionValue = valuePart ? valuePart.split('=')[1] : opt;
+                    optionValue = valuePart ? valuePart.split('=')[1] : idx + 1;
                 }
-                // Handle object format with label/value
-                else if (typeof opt === 'object' && opt !== null && opt.label !== undefined) {
-                    optionText = opt.label || opt.text || `Option ${opt.value || options.length + 1}`;
-                    optionValue = opt.value || opt.option_value || options.length + 1;
+                // Handle object format
+                else if (typeof opt === 'object' && opt !== null) {
+                    optionText = opt.label || opt.text || `Option ${idx + 1}`;
+                    optionValue = opt.value || opt.option_value || idx + 1;
                 }
-                // Handle object format with text/value
-                else if (typeof opt === 'object' && opt !== null && opt.text !== undefined) {
-                    optionText = opt.text || opt.label || `Option ${opt.value || options.length + 1}`;
-                    optionValue = opt.value || opt.option_value || options.length + 1;
-                }
-                // Handle simple string (for autocomplete type)
+                // Handle simple string
                 else if (typeof opt === 'string') {
                     optionText = opt;
-                    optionValue = opt;
+                    optionValue = idx + 1;
                 }
                 // Fallback
                 else {
-                    optionText = `Option ${options.length + 1}`;
-                    optionValue = options.length + 1;
+                    optionText = `Option ${idx + 1}`;
+                    optionValue = idx + 1;
                 }
 
                 return {
@@ -142,19 +173,21 @@ class QuizService {
             code: dbQuestion.code || dbQuestion.question_code,
             q: dbQuestion.text || dbQuestion.question_text,
             type: questionType,
-            o: options
+            o: options,
+            dimension: dbQuestion.dimension || null,
+            difficulty: dbQuestion.difficulty || 'medium'
         };
     }
 
     /**
-     * Normalize option values coming from DB/API.
-     * Likert answers must be numeric for validation and PROA payload mapping.
+     * Normalize option values
      */
     normalizeOptionValue(value, questionType) {
         if (typeof value === 'string') {
             const trimmed = value.trim();
 
-            if (['likert', 'boolean', 'choice'].includes(questionType) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+            // Likert/scale questions need numeric values
+            if (['likert', 'scale', 'single_choice'].includes(questionType) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
                 return Number(trimmed);
             }
 
@@ -164,38 +197,47 @@ class QuizService {
         return value;
     }
 
+    // ============================================================
+    // 🎓 BAC CONGOLAIS - GESTION COMPLÈTE
+    // ============================================================
+
     normalizeBacType(value) {
-        const normalized = String(value || '')
+        if (!value) return null;
+        
+        const normalized = String(value)
             .trim()
             .toUpperCase()
-            .replace(/\s+/g, '');
-
+            .replace(/\s+/g, '')
+            .replace(/[^A-Z0-9]/g, '');
+        
+        // Direct match
+        if (this.BAC_CONFIG.availableCodes.includes(normalized)) {
+            return normalized;
+        }
+        
+        // Handle aliases
         const aliases = {
-            A: 'A',
-            A1: 'A',
-            A2: 'A',
-            A3: 'A',
-            C: 'C/D',
-            D: 'C/D',
-            'C/D': 'C/D',
-            CD: 'C/D',
-            'D/C': 'C/D',
-            DC: 'C/D',
-            E: 'E/F',
-            F: 'E/F',
-            'E/F': 'E/F',
-            EF: 'E/F',
-            'F/E': 'E/F',
-            FE: 'E/F',
-            H: 'H',
-            G: 'G/BG',
-            BG: 'G/BG',
-            'G/BG': 'G/BG',
-            GBG: 'G/BG',
-            P: 'P'
+            'C/D': 'C',
+            'CD': 'C',
+            'D/C': 'D',
+            'DC': 'D',
+            'E/F': 'E',
+            'EF': 'E',
+            'G/BG': 'G',
+            'GBG': 'G'
         };
-
-        return aliases[normalized] || null;
+        
+        if (aliases[normalized]) {
+            return aliases[normalized];
+        }
+        
+        // Try to extract code from string like "Série C" or "Bac C"
+        const match = normalized.match(/[A-Z][0-9]?/);
+        if (match && this.BAC_CONFIG.availableCodes.includes(match[0])) {
+            return match[0];
+        }
+        
+        return null;
     }
 
     getBacStorageKey() {
@@ -204,7 +246,8 @@ class QuizService {
 
     loadStoredBacType() {
         try {
-            return this.normalizeBacType(sessionStorage.getItem(this.getBacStorageKey()));
+            const stored = sessionStorage.getItem(this.getBacStorageKey());
+            return stored ? this.normalizeBacType(stored) : null;
         } catch (error) {
             this.logger.warn('Unable to load stored bac type:', error);
             return null;
@@ -214,7 +257,7 @@ class QuizService {
     setBacType(value) {
         const normalized = this.normalizeBacType(value);
         if (!normalized) {
-            throw new Error(`Invalid bac type: ${value}`);
+            throw new Error(`Invalid bac type: ${value}. Available: ${this.BAC_CONFIG.availableCodes.join(', ')}`);
         }
 
         this.bacType = normalized;
@@ -225,6 +268,7 @@ class QuizService {
             this.logger.warn('Unable to persist bac type:', error);
         }
 
+        this.logger.log(`🎓 Bac type set: ${normalized} (${this.getBacInfo().name})`);
         return this.bacType;
     }
 
@@ -232,8 +276,17 @@ class QuizService {
         return this.bacType;
     }
 
+    getBacInfo() {
+        if (!this.bacType) return null;
+        return this.BAC_CONFIG.tracks[this.bacType] || { name: 'Général', group: 'general', boost: 1.0 };
+    }
+
     hasBacType() {
         return Boolean(this.bacType);
+    }
+
+    getAvailableBacTypes() {
+        return this.BAC_CONFIG.availableCodes;
     }
 
     clearBacType() {
@@ -242,78 +295,19 @@ class QuizService {
         } catch (error) {
             this.logger.warn('Unable to clear stored bac type:', error);
         }
-
         this.bacType = null;
     }
 
-    /**
-     * Convert option value to numeric score (1-4) for PROA API
-     * For choice/autocomplete questions, map based on option position
-     * For likert questions, use the value directly
-     */
-    convertToNumericScore(value, question) {
-        const normalizedValue = this.normalizeOptionValue(value, question.type);
-        value = normalizedValue;
-        console.log(`🔄 Converting value "${value}" for question type "${question.type}"`);
-
-        // For likert questions, value should already be numeric 1-4
-        if (question.type === 'likert') {
-            const numValue = Number(value);
-            if (Number.isFinite(numValue) && numValue >= 1 && numValue <= 4) {
-                console.log(`✅ Likert value ${value} -> ${numValue}`);
-                return numValue;
-            }
-            // If it's a string but should be numeric, try to map it
-            console.log(`⚠️  Likert value "${value}" is not numeric, treating as choice`);
-        }
-
-        // For choice/autocomplete questions, or likert with string values, find the option index and map to 1-4
-        if (question.type === 'choice' || question.type === 'autocomplete' || question.type === 'likert') {
-            const options = question.o || [];
-            console.log(`🔍 Looking for "${value}" in options:`, options);
-
-            const optionIndex = options.findIndex(opt => opt.v === value || opt.t === value);
-
-            if (optionIndex === -1) {
-                console.error(`❌ Option value "${value}" not found in options:`, options);
-                throw new Error(`Option value not found: ${value}`);
-            }
-
-            // Map option position to score 1-4
-            // If 2 options: position 0 = 1, position 1 = 4
-            // If 3 options: position 0 = 1, position 1 = 2, position 2 = 4
-            // If 4+ options: position 0 = 1, position 1 = 2, position 2 = 3, position 3+ = 4
-            const numOptions = options.length;
-            let score;
-            if (numOptions === 2) {
-                score = optionIndex === 0 ? 1 : 4;
-            } else if (numOptions === 3) {
-                score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 2 : 4);
-            } else {
-                score = Math.min(optionIndex + 1, 4);
-            }
-
-            console.log(`✅ Mapped option at index ${optionIndex} to score ${score}`);
-            return score;
-        }
-
-        // Fallback for unknown types
-        const numValue = Number(value);
-        if (!isNaN(numValue) && numValue >= 1 && numValue <= 4) {
-            console.log(`✅ Fallback: "${value}" -> ${numValue}`);
-            return numValue;
-        }
-
-        console.error(`❌ Cannot convert value "${value}" to numeric score`);
-        throw new Error(`Cannot convert value to numeric score: ${value}`);
-    }
+    // ============================================================
+    // 🎮 QUIZ LOGIC
+    // ============================================================
 
     /**
-     * Start quiz for a given role (student or parent)
+     * Start quiz for a given role
      */
     startQuiz(role) {
         if (!this.questions[role] || this.questions[role].length === 0) {
-            throw new Error(`❌ No questions loaded for role: ${role}`);
+            throw new Error(`No questions loaded for role: ${role}`);
         }
 
         this.logger.log(`🎮 Starting ${role} quiz with ${this.questions[role].length} questions`);
@@ -324,6 +318,10 @@ class QuizService {
         this.responseMetadata = {};
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
         this.parentBudget = null;
+        this.totalTimeSpent = 0;
+        this.quizStartTime = Date.now();
+        this.questionTimestamps.clear();
+        this.responseCache.clear();
 
         return {
             role: this.currentRole,
@@ -343,6 +341,9 @@ class QuizService {
         const q = this.questions[this.currentRole][this.currentStep];
         if (!q) return null;
 
+        // Record start time for this question
+        this.questionTimestamps.set(q.code, Date.now());
+
         return {
             ...q,
             step: this.currentStep + 1,
@@ -351,55 +352,123 @@ class QuizService {
     }
 
     /**
+     * Convert option value to numeric score (1-5)
+     */
+    convertToNumericScore(value, question) {
+        const normalizedValue = this.normalizeOptionValue(value, question.type);
+        
+        this.logger.debug(`🔄 Converting "${value}" for type "${question.type}"`);
+
+        // For likert/scale questions
+        if (question.type === 'likert' || question.type === 'scale') {
+            const numValue = Number(normalizedValue);
+            if (Number.isFinite(numValue) && numValue >= 1 && numValue <= 5) {
+                return numValue;
+            }
+        }
+
+        // For choice questions, map based on position
+        const options = question.o || [];
+        const optionIndex = options.findIndex(opt => 
+            opt.v === normalizedValue || opt.t === normalizedValue
+        );
+
+        if (optionIndex === -1) {
+            this.logger.warn(`Option not found: "${value}", using default`);
+            return 3; // Default neutral value
+        }
+
+        // Map to 1-5 scale based on number of options
+        const numOptions = options.length;
+        let score;
+        
+        if (numOptions === 2) {
+            score = optionIndex === 0 ? 1 : 5;
+        } else if (numOptions === 3) {
+            score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 3 : 5);
+        } else if (numOptions === 4) {
+            score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 2 : (optionIndex === 2 ? 4 : 5));
+        } else {
+            score = Math.min(optionIndex + 1, 5);
+        }
+
+        return score;
+    }
+
+    /**
      * Record answer and advance to next question
      */
     answerQuestion(value) {
-        console.log(`🎯 answerQuestion called with value: "${value}"`);
-
         const currentQuestion = this.getCurrentQuestion();
         if (!currentQuestion) {
             throw new Error('No current question');
         }
 
-        console.log(`📋 Current question:`, currentQuestion);
+        // Record time spent on this question
+        const startTime = this.questionTimestamps.get(currentQuestion.code);
+        if (startTime) {
+            const timeSpent = Date.now() - startTime;
+            this.totalTimeSpent += timeSpent;
+            this.questionTimestamps.delete(currentQuestion.code);
+        }
 
-        // Convert option value to numeric score for PROA API
-        const numericScore = this.convertToNumericScore(value, currentQuestion);
+        // Handle multi-choice answers (JSON array)
+        let processedValue = value;
+        let numericScore;
+        
+        if (currentQuestion.type === 'multi_choice') {
+            try {
+                const choices = JSON.parse(value);
+                numericScore = this.calculateMultiChoiceScore(choices, currentQuestion);
+                processedValue = choices.join(',');
+            } catch (e) {
+                numericScore = this.convertToNumericScore(value, currentQuestion);
+            }
+        } else {
+            numericScore = this.convertToNumericScore(value, currentQuestion);
+        }
+
         const normalizedValue = this.normalizeOptionValue(value, currentQuestion.type);
-        const selectedOption = (currentQuestion.o || []).find(opt => opt.v === normalizedValue || opt.t === normalizedValue || opt.v === value || opt.t === value);
+        const selectedOption = (currentQuestion.o || []).find(opt => 
+            opt.v === normalizedValue || opt.t === normalizedValue
+        );
 
-        // Store answer (keep original value for display, numeric score for API)
+        // Store answer
         this.selectedAnswers[currentQuestion.code] = numericScore;
         this.responseMetadata[currentQuestion.code] = {
             raw_value: normalizedValue,
             numeric_score: numericScore,
             question_type: currentQuestion.type,
             option_count: (currentQuestion.o || []).length,
-            selected_text: selectedOption?.t ?? String(value)
+            selected_text: selectedOption?.t || String(value),
+            time_spent_ms: startTime ? (Date.now() - startTime) : null
         };
-        this.logger.log(`📝 Answer recorded: ${currentQuestion.code} = ${value} (score: ${numericScore})`);
+        
+        this.logger.log(`📝 Answer: ${currentQuestion.code} = ${value} (score: ${numericScore})`);
 
-        // Update profile scores for legacy compatibility
-        if (this.scores[numericScore] !== undefined) {
-            this.scores[numericScore] += 2;
+        // Cache for potential recovery
+        this.responseCache.set(currentQuestion.code, {
+            value: processedValue,
+            score: numericScore,
+            timestamp: Date.now()
+        });
+
+        // Update legacy scores
+        if (currentQuestion.dimension) {
+            const dim = currentQuestion.dimension.toUpperCase();
+            if (this.scores[dim] !== undefined) {
+                this.scores[dim] += numericScore;
+            }
         }
 
+        // Handle budget question
         if (currentQuestion.isBudgetQuestion) {
             this.parentBudget = this.getBudgetAdviceFromScore(numericScore);
-        } else {
-            // Budget advice for parents
-            if (numericScore === 1) {  // LOW budget
-                this.parentBudget = 'Privilégiez les Universités Publiques ou BTS.';
-            }
-            if (numericScore === 4) {  // HIGH budget
-                this.parentBudget = 'Les Grandes Écoles de Commerce/Ingénieurs sont accessibles.';
-            }
         }
 
         // Advance
         this.currentStep++;
 
-        // Check if quiz complete
         const isComplete = this.currentStep >= this.questions[this.currentRole].length;
 
         return {
@@ -407,9 +476,25 @@ class QuizService {
             nextQuestion: isComplete ? null : this.getCurrentQuestion(),
             progress: {
                 step: this.currentStep,
-                total: this.questions[this.currentRole].length
+                total: this.questions[this.currentRole].length,
+                percentage: Math.round((this.currentStep / this.questions[this.currentRole].length) * 100)
             }
         };
+    }
+
+    /**
+     * Calculate score for multi-choice questions
+     */
+    calculateMultiChoiceScore(choices, question) {
+        if (!choices || choices.length === 0) return 3;
+        
+        const options = question.o || [];
+        const selectedValues = choices.map(c => {
+            const opt = options.find(o => o.v === c || o.t === c);
+            return opt ? this.convertToNumericScore(opt.v, question) : 3;
+        });
+        
+        return Math.round(selectedValues.reduce((a, b) => a + b, 0) / selectedValues.length);
     }
 
     /**
@@ -434,6 +519,10 @@ class QuizService {
         this.selectedAnswers = {};
         this.responseMetadata = {};
         this.scores = { TECH: 0, CREA: 0, MED: 0, BIZ: 0 };
+        this.responseCache.clear();
+        this.questionTimestamps.clear();
+        this.totalTimeSpent = 0;
+        this.quizStartTime = null;
         this.clearBacType();
     }
 
@@ -459,10 +548,11 @@ class QuizService {
             };
         }
 
-        // Validate all values are in range [1-4] for all question types
+        // Validate all values are in range [1-5]
         const invalidAnswers = Object.entries(this.selectedAnswers)
             .filter(([code, value]) => {
-                if (typeof value !== 'number' || value < 1 || value > 4) {
+                if (typeof value !== 'number' || value < 1 || value > 5) {
+                    this.logger.warn(`Invalid value for ${code}: ${value}`);
                     return true;
                 }
                 return false;
@@ -484,25 +574,18 @@ class QuizService {
      * Map responses to PROA format
      */
     mapToProaFormat() {
-        console.log('📊 Mapping responses to PROA format...');
-        console.log('📋 Current selectedAnswers:', this.selectedAnswers);
-
         const validation = this.validateResponses();
         if (!validation.valid) {
             throw new Error(validation.error);
         }
 
-        this.logger.log('📊 Mapping responses to PROA format...');
+        this.logger.log('📊 Mapping responses to PROA format V2...');
 
         const proaResponses = {};
         
         for (const [code, value] of Object.entries(this.selectedAnswers)) {
-            if (code === 'Q_BUDGET_SCOLARITE') {
-                continue;
-            }
-            // Values are already converted to numeric scores 1-4
+            if (code === 'Q_BUDGET_SCOLARITE') continue;
             proaResponses[code.toLowerCase()] = value;
-            console.log(`🔄 ${code} -> ${value} (type: ${typeof value})`);
         }
 
         const responseMetadata = {};
@@ -510,6 +593,7 @@ class QuizService {
             responseMetadata[code.toLowerCase()] = metadata;
         }
 
+        // Add bac info for student quiz
         if (this.currentRole === 'student') {
             if (!this.bacType) {
                 throw new Error('Le type de bac est obligatoire pour ce quiz.');
@@ -519,41 +603,53 @@ class QuizService {
                 raw_value: this.bacType,
                 selected_text: this.bacType,
                 question_type: 'required_bac_gate',
-                option_count: 6,
+                bac_info: this.getBacInfo(),
                 is_required: true
             };
         }
 
-        console.log('✅ PROA format ready:', proaResponses);
-        this.logger.log('✅ PROA format ready:', proaResponses);
+        // Add quiz metadata
+        const quizDuration = this.quizStartTime ? (Date.now() - this.quizStartTime) : this.totalTimeSpent;
         
-        return {
+        const result = {
             user_id: this.getUserId(),
-            quiz_version: this.currentRole === 'student' ? '1.0' : '1.0-parent',
+            user_type: this.currentRole === 'student' ? 'bachelier' : 'parent',
+            quiz_code: this.currentRole === 'student' ? 'quiz_bachelier_v2' : 'quiz_parent_v2',
             orientation_type: 'field',
             responses: proaResponses,
-            response_metadata: responseMetadata
+            response_metadata: responseMetadata,
+            quiz_metadata: {
+                role: this.currentRole,
+                total_questions: this.questions[this.currentRole]?.length || 0,
+                duration_ms: quizDuration,
+                completed_at: new Date().toISOString(),
+                bac_type: this.bacType
+            }
         };
+
+        // Add bac code if available
+        if (this.bacType) {
+            result.bac_code = this.bacType;
+        }
+
+        this.logger.log('✅ PROA format ready');
+        return result;
     }
 
     /**
      * Get user ID from authenticated user or fallback
      */
     getUserId() {
-        // Use authenticated user ID first
         if (this.authenticatedUser && this.authenticatedUser.id) {
             return this.authenticatedUser.id;
         }
 
-        // Fallback to sessionStorage for legacy flows
         let userId = sessionStorage.getItem('user-id');
-
         if (!userId) {
             userId = this.generateUUID();
             sessionStorage.setItem('user-id', userId);
             this.logger.warn('⚠️ Using generated UUID as fallback user ID:', userId);
         }
-
         return userId;
     }
 
@@ -568,30 +664,22 @@ class QuizService {
         });
     }
 
-    /**
-     * Get current role
-     */
     getCurrentRole() {
         return this.currentRole;
     }
 
-    /**
-     * Get all answers
-     */
     getAnswers() {
         return { ...this.selectedAnswers };
     }
 
-    /**
-     * Get profile scores
-     */
+    getResponseMetadata() {
+        return { ...this.responseMetadata };
+    }
+
     getScores() {
         return { ...this.scores };
     }
 
-    /**
-     * Get parent budget advice
-     */
     getBudgetAdvice() {
         return this.parentBudget;
     }
@@ -600,23 +688,35 @@ class QuizService {
         const score = Number(this.selectedAnswers.Q_BUDGET_SCOLARITE);
         const ranges = {
             1: { level: 'low', label: '25 000 XAF par mois ou moins', max_monthly_price: 25000, currency: 'XAF' },
-            2: { level: 'medium', label: 'Jusqu’à 50 000 XAF par mois', max_monthly_price: 50000, currency: 'XAF' },
-            3: { level: 'high', label: 'Jusqu’à 100 000 XAF par mois', max_monthly_price: 100000, currency: 'XAF' },
+            2: { level: 'medium', label: 'Jusqu\'à 50 000 XAF par mois', max_monthly_price: 50000, currency: 'XAF' },
+            3: { level: 'high', label: 'Jusqu\'à 100 000 XAF par mois', max_monthly_price: 100000, currency: 'XAF' },
             4: { level: 'open', label: 'Plus de 100 000 XAF par mois', max_monthly_price: null, currency: 'XAF' }
         };
-
         return ranges[score] || null;
     }
 
     getBudgetAdviceFromScore(score) {
-        const preference = {
+        const advice = {
             1: 'Nous filtrons les universités avec des frais mensuels inférieurs à 25 000 XAF.',
             2: 'Nous filtrons les universités avec des frais mensuels inférieurs à 50 000 XAF.',
             3: 'Nous filtrons les universités avec des frais mensuels inférieurs à 100 000 XAF.',
             4: 'Le budget ne limite pas les recommandations universitaires.'
         };
+        return advice[score] || null;
+    }
 
-        return preference[score] || null;
+    /**
+     * Get quiz statistics
+     */
+    getStats() {
+        return {
+            totalQuestions: this.getTotalQuestions(),
+            answeredQuestions: Object.keys(this.selectedAnswers).length,
+            completionPercentage: this.getProgress(),
+            totalTimeSpentMs: this.totalTimeSpent,
+            bacType: this.bacType,
+            currentRole: this.currentRole
+        };
     }
 }
 
