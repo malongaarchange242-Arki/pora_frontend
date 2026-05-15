@@ -131,13 +131,14 @@ const CONFIG = {
      * Load configuration from backend secure endpoint
      */
     async loadFromBackend() {
-        // Only attempt if running on a proper server
-        const isSecureContext = window.location.protocol === 'https:' || 
-                                window.location.hostname === 'localhost' ||
-                                window.location.hostname === '127.0.0.1';
+        // Only attempt if running in a secure production context,
+        // or explicitly enabled via env config for local development.
+        const backendConfigEnabled = window.ENV?.ENABLE_BACKEND_CONFIG === true || window.__ENV?.ENABLE_BACKEND_CONFIG === true;
+        const isSecureContext = window.location.protocol === 'https:' &&
+                                !['localhost', '127.0.0.1'].includes(window.location.hostname);
         
-        if (!isSecureContext) {
-            console.debug('ℹ️ Skipping backend config (not secure context)');
+        if (!backendConfigEnabled && !isSecureContext) {
+            console.debug('ℹ️ Skipping backend config (not secure or not enabled)');
             return;
         }
         

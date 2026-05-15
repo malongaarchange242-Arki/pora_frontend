@@ -36,6 +36,7 @@ const ENV = {
     // UI/DEBUG
     // ============================================
     DEBUG_LOG_LEVEL: 'info', // 'debug', 'info', 'warn', 'error'
+    ENABLE_BACKEND_CONFIG: false
 };
 
 // Make globally available

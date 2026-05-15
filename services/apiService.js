@@ -31,6 +31,9 @@ class APIService {
             averageResponseTime: 0,
             lastCallTimestamp: null
         };
+
+        // Logger must be available before any async setup is executed
+        this.logger = config.logger || console;
         
         // Initialize Supabase
         if (config.SUPABASE_URL && config.SUPABASE_ANON_KEY) {
@@ -45,15 +48,13 @@ class APIService {
             }
         } else {
             this.supabase = null;
-            console.warn('⚠️ WARNING: Supabase credentials not configured. Database features will not work.');
+            this.logger.warn('⚠️ WARNING: Supabase credentials not configured. Database features will not work.');
         }
         
         // Initialize offline support
         if (this.ENABLE_OFFLINE && 'serviceWorker' in navigator) {
             this.registerServiceWorker();
         }
-        
-        this.logger = config.logger || console;
         
         // ============================================================
         // BAC CONGOLAIS - MAPPING COMPLET
@@ -222,10 +223,13 @@ class APIService {
         }
 
         try {
+            const authResult = await this.supabase.auth.getUser();
+            const authMetadata = authResult?.data?.user?.user_metadata || {};
+
             const [userResult, profileResult] = await Promise.allSettled([
                 this.supabase
                     .from('utilisateurs')
-                    .select('id, user_type, bac_code, bac_year')
+                    .select('id, user_type')
                     .eq('id', userId)
                     .single(),
                 this.supabase
@@ -241,10 +245,10 @@ class APIService {
             if (profileData) {
                 const fullProfile = {
                     ...profileData,
-                    user_type: userData?.user_type || 'bachelier',
-                    bac_code: userData?.bac_code || null,
-                    bac_year: userData?.bac_year || null,
-                    bac_info: userData?.bac_code ? this.getBacInfo(userData.bac_code) : null
+                    user_type: userData?.user_type || authMetadata?.user_type || 'bachelier',
+                    bac_code: authMetadata?.bac_code || null,
+                    bac_year: authMetadata?.bac_year || null,
+                    bac_info: authMetadata?.bac_code ? this.getBacInfo(authMetadata.bac_code) : null
                 };
                 
                 this.logger.log('✅ User profile loaded:', fullProfile);
