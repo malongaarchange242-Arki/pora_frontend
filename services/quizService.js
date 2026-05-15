@@ -378,18 +378,17 @@ class QuizService {
             return 3; // Default neutral value
         }
 
-        // Map to 1-5 scale based on number of options
+        // Map to a normalized 1-4 range for fixed-choice questions.
+        // This avoids invalid score values like 5 when the backend expects a 1-4 choice scale.
         const numOptions = options.length;
         let score;
-        
+
         if (numOptions === 2) {
-            score = optionIndex === 0 ? 1 : 5;
+            score = optionIndex === 0 ? 1 : 4;
         } else if (numOptions === 3) {
-            score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 3 : 5);
-        } else if (numOptions === 4) {
-            score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 2 : (optionIndex === 2 ? 4 : 5));
+            score = optionIndex === 0 ? 1 : (optionIndex === 1 ? 2 : 4);
         } else {
-            score = Math.min(optionIndex + 1, 5);
+            score = Math.min(optionIndex + 1, 4);
         }
 
         return score;
