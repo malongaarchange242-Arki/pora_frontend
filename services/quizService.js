@@ -724,6 +724,3 @@ class QuizService {
 if (typeof window !== 'undefined') {
     window.QuizService = QuizService;
 }
-
-
-

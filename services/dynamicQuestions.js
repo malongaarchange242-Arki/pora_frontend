@@ -386,89 +386,11 @@ function createPersonalizedQuizByBac(bacCode, targetQuestions = 8) {
     
     let availableQuestions = filterQuestionsByBac(bacCode);
     
-    // Prioriser les questions des dimensions prioritaires
-    const priorityQuestions = availableQuestions.filter(q => 
-        priorityDimensions.includes(q.dimension)
-    );
-    
-    const otherQuestions = availableQuestions.filter(q => 
-        !priorityDimensions.includes(q.dimension)
-    );
-    
-    // Mélanger
-    for (let i = priorityQuestions.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [priorityQuestions[i], priorityQuestions[j]] = [priorityQuestions[j], priorityQuestions[i]];
-    }
-    
-    // Prendre ~70% de questions prioritaires
-    const priorityCount = Math.floor(targetQuestions * 0.7);
-    const selected = [
-        ...priorityQuestions.slice(0, priorityCount),
-        ...otherQuestions.slice(0, targetQuestions - priorityCount)
-    ];
-    
-    console.log(`🎓 Quiz personnalisé bac ${bacCode}: ${selected.length} questions (${priorityCount} prioritaires)`);
-    return selected;
+    // Shuffle and return
+    return all.sort(() => 0.5 - Math.random()).slice(0, targetQuestions);
 }
 
-/**
- * Calcule le score de dimension pour une question
- * @param {Object} question - La question
- * @param {any} answer - La réponse
- * @returns {Object} Scores par dimension
- */
-function calculateDimensionScores(question, answer) {
-    const scores = {};
-    const dimension = question.dimension;
-    const weight = question.weight || 1.0;
-    
-    // Pour les questions likert/scale (1-5)
-    if (typeof answer === 'number') {
-        const normalizedScore = answer / 5; // Normalisation 0-1
-        scores[dimension] = normalizedScore * weight;
-    }
-    // Pour les choix uniques avec dimension_impact
-    else if (question.type === 'single_choice' || question.type === 'scenario') {
-        const selectedOption = question.o.find(opt => opt.v === answer);
-        if (selectedOption && selectedOption.dimension_impact) {
-            scores[selectedOption.dimension_impact] = 1.0 * weight;
-        } else {
-            scores[dimension] = 0.7 * weight;
-        }
-    }
-    // Pour les choix multiples
-    else if (question.type === 'multi_choice' && Array.isArray(answer)) {
-        const perSelection = weight / Math.max(answer.length, 1);
-        for (const selected of answer) {
-            const option = question.o.find(opt => opt.v === selected);
-            if (option && option.dimension_impact) {
-                scores[option.dimension_impact] = (scores[option.dimension_impact] || 0) + perSelection;
-            }
-        }
-    }
-    
-    return scores;
-}
-
-// ============================================================
-// 📤 EXPORTS
-// ============================================================
-
-// Pour utilisation dans le navigateur
-if (typeof window !== 'undefined') {
-    window.DYNAMIC_QUESTIONS = DYNAMIC_QUESTIONS;
-    window.DIMENSIONS = DIMENSIONS;
-    window.BAC_DIMENSION_PRIORITY = BAC_DIMENSION_PRIORITY;
-    window.filterQuestionsByBac = filterQuestionsByBac;
-    window.getAllQuestions = getAllQuestions;
-    window.createDynamicQuizMix = createDynamicQuizMix;
-    window.createPersonalizedQuizByBac = createPersonalizedQuizByBac;
-    window.calculateDimensionScores = calculateDimensionScores;
-}
-
-console.log('✅ Dynamic Questions V2 module loaded. Features:');
-console.log('- Support bac congolais (C, D, A, G, E, H)');
-console.log('- Dimension mapping for vector scoring');
-console.log('- 6 question types (including ranking)');
-console.log('- Personalized quizzes by bac code');
+console.log('✅ Dynamic Questions module loaded. Available:');
+console.log('- DYNAMIC_QUESTIONS_EXAMPLES: All question types');
+console.log('- createDynamicQuizMix(): Balanced mix');
+console.log('- createBalancedDynamicQuiz(n): Get n questions');
