@@ -5,6 +5,7 @@
  * 
  * AMÉLIORATIONS V2:
  * - Support bac congolais complet (toutes les séries)
+ * - Matrice d'exclusion pour éviter les incohérences
  * - Parallel requests for better performance
  * - WebSocket real-time updates
  * - Performance analytics
@@ -164,7 +165,7 @@ class APIService {
             'informatique': ['C', 'E', 'H1', 'H4', 'F2'],
             'engineering': ['C', 'E', 'F1', 'F2', 'F3', 'F4', 'P2', 'P6', 'P7'],
             'business': ['G1', 'G2', 'G3', 'BG', 'H2', 'H3', 'H5', 'R5'],
-            'droit': ['A', 'BG', 'H5'],
+            'droit': ['A', 'BG', 'H5', 'G1', 'G2', 'G3'],
             'social': ['A', 'H2', 'H5'],
             'sciences': ['C', 'D', 'E'],
             'sante': ['D', 'R3'],
@@ -361,6 +362,91 @@ class APIService {
         }
         
         return 1.0;
+    }
+
+    /**
+     * Retourne les clusters INTERDITS pour un code bac
+     * Matrice complète pour TOUTES les séries
+     */
+    getForbiddenClustersForBac(bacCode) {
+        const normalized = this.normalizeBacCode(bacCode);
+        if (!normalized) return [];
+        
+        const forbiddenClusters = {
+            // Lettres et Sciences Humaines
+            'A': ['informatique', 'engineering', 'sante', 'medecine', 'geoscience'],
+            
+            // Sciences
+            'C': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres'],
+            'D': ['droit', 'law', 'legal', 'business', 'arts_design', 'lettres'],
+            'E': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres'],
+            
+            // Filières industrielles
+            'F1': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            'F2': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            'F3': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            'F4': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            
+            // Filières tertiaires - Informatique
+            'H1': ['droit', 'law', 'legal', 'social', 'lettres', 'sante', 'arts_design'],
+            'H4': ['droit', 'law', 'legal', 'social', 'lettres', 'sante', 'arts_design'],
+            
+            // Filières tertiaires - Commerce/Admin
+            'H2': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'H3': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'H5': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            
+            // Gestion / Commerce
+            'G1': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'G2': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'G3': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'BG': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            
+            // Filières agricoles
+            'R1': ['droit', 'law', 'legal', 'informatique', 'engineering', 'business', 'arts_design'],
+            'R2': ['droit', 'law', 'legal', 'informatique', 'engineering', 'business', 'arts_design'],
+            'R3': ['droit', 'law', 'legal', 'informatique', 'engineering', 'business', 'arts_design'],
+            'R4': ['droit', 'law', 'legal', 'informatique', 'engineering', 'business', 'arts_design'],
+            'R5': ['sante', 'medecine', 'geoscience', 'informatique', 'engineering'],
+            'R6': ['droit', 'law', 'legal', 'informatique', 'engineering', 'business', 'arts_design'],
+            
+            // Filières professionnelles
+            'P2': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            'P6': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business'],
+            'P7': ['droit', 'law', 'legal', 'social', 'arts_design', 'lettres', 'sante', 'business']
+        };
+        
+        return forbiddenClusters[normalized] || [];
+    }
+
+    /**
+     * Filtre les recommandations pour exclure les clusters interdits par le bac
+     */
+    filterRecommendationsByBac(recommendations, bacCode) {
+        if (!bacCode || !recommendations || recommendations.length === 0) {
+            return recommendations;
+        }
+        
+        const forbiddenClusters = this.getForbiddenClustersForBac(bacCode);
+        if (forbiddenClusters.length === 0) {
+            return recommendations;
+        }
+        
+        const filtered = recommendations.filter(rec => {
+            const cluster = rec.cluster || rec.metadata?.cluster || '';
+            const isForbidden = forbiddenClusters.some(forbidden => 
+                cluster.toLowerCase().includes(forbidden.toLowerCase())
+            );
+            
+            if (isForbidden) {
+                this.logger.log(`🎓 Bac ${bacCode}: Filtrage de "${rec.name || rec.field_name}" (cluster: ${cluster}) - interdit`);
+            }
+            
+            return !isForbidden;
+        });
+        
+        this.logger.log(`🎓 Bac ${bacCode}: ${filtered.length}/${recommendations.length} recommandations après filtrage`);
+        return filtered;
     }
 
     /**
