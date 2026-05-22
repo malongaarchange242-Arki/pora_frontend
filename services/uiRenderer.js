@@ -1,13 +1,15 @@
 /**
- * UI Renderer Module - Version 2.0
+ * UI Renderer Module - Version 3.0
  * Handles all DOM updates: questions, results, loaders, errors
  * 
- * AMÉLIORATIONS V2:
+ * AMÉLIORATIONS V3:
  * - Support bac congolais complet (26 séries)
- * - Affichage des scores de confiance
- * - Animations améliorées
- * - Accessibilité (ARIA labels)
- * - Mode dégradé
+ * - Nouveau design moderne et clair pour les résultats
+ * - Icônes Font Awesome Pro
+ * - Animations améliorées (confettis, fadeInUp)
+ * - Barres de progression pour les universités
+ * - Badges de compatibilité colorés
+ * - Score circulaire avec effet glow
  */
 
 class UIRenderer {
@@ -126,6 +128,7 @@ class UIRenderer {
         this.ensureAiInsight();
         this.ensureConfidenceBadge();
         this.ensureBacInfoContainer();
+        this.ensureResultStyles();
     }
 
     ensureQuestionMeta() {
@@ -198,6 +201,374 @@ class UIRenderer {
         resultBox.appendChild(container);
     }
 
+    ensureResultStyles() {
+        // Ajoute les styles du nouveau design s'ils n'existent pas
+        if (!document.getElementById('result-styles')) {
+            const style = document.createElement('style');
+            style.id = 'result-styles';
+            style.textContent = `
+                /* Container principal */
+                .result-container-v2 {
+                    max-width: 480px;
+                    width: 100%;
+                    margin: 0 auto;
+                }
+
+                /* Carte principale - Style clair */
+                .result-card-v2 {
+                    background: white;
+                    border-radius: 40px;
+                    padding: 28px 24px;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+                    border: 1px solid rgba(0, 0, 0, 0.05);
+                }
+
+                /* EN-TÊTE AVEC SCORE */
+                .result-header-v2 {
+                    text-align: center;
+                    margin-bottom: 32px;
+                }
+
+                .score-circle-v2 {
+                    width: 120px;
+                    height: 120px;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border-radius: 50%;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 20px;
+                    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+                }
+
+                .score-value-v2 {
+                    font-size: 2.5rem;
+                    font-weight: 800;
+                    color: white;
+                    line-height: 1;
+                }
+
+                .score-label-v2 {
+                    font-size: 0.7rem;
+                    color: rgba(255, 255, 255, 0.8);
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                }
+
+                .result-title-v2 {
+                    font-size: 1.8rem;
+                    font-weight: 800;
+                    color: #1e293b;
+                    margin-bottom: 12px;
+                }
+
+                .result-tags-v2 {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 8px;
+                }
+
+                .tag-v2 {
+                    background: #f1f5f9;
+                    padding: 6px 14px;
+                    border-radius: 30px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    color: #475569;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                .tag-v2.bac {
+                    background: #dcfce7;
+                    color: #16a34a;
+                    border: none;
+                }
+
+                /* SECTIONS GÉNÉRIQUES */
+                .section-v2 {
+                    margin-bottom: 32px;
+                }
+
+                .section-title-v2 {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 1.5px;
+                    color: #6366f1;
+                    margin-bottom: 20px;
+                }
+
+                /* LISTE DES FILIÈRES */
+                .fields-list-v2 {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
+
+                .field-item-v2 {
+                    background: #f8fafc;
+                    border-radius: 20px;
+                    padding: 14px 18px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    transition: all 0.3s ease;
+                    border: 1px solid #e2e8f0;
+                }
+
+                .field-item-v2:hover {
+                    background: #f1f5f9;
+                    transform: translateX(4px);
+                    border-color: #cbd5e1;
+                }
+
+                .field-name-v2 {
+                    font-weight: 600;
+                    color: #1e293b;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+
+                .field-name-v2 i {
+                    width: 24px;
+                    color: #6366f1;
+                }
+
+                .field-score-v2 {
+                    font-weight: 800;
+                    font-size: 1.1rem;
+                }
+
+                .field-score-v2.high {
+                    color: #10b981;
+                }
+
+                .field-score-v2.medium {
+                    color: #f59e0b;
+                }
+
+                .field-score-v2.low {
+                    color: #94a3b8;
+                }
+
+                /* LISTE DES UNIVERSITÉS */
+                .universities-list-v2 {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                .uni-card-v2 {
+                    background: #f8fafc;
+                    border-radius: 24px;
+                    padding: 18px;
+                    display: flex;
+                    gap: 14px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #e2e8f0;
+                    cursor: pointer;
+                }
+
+                .uni-card-v2:hover {
+                    background: #ffffff;
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+                    border-color: #cbd5e1;
+                }
+
+                .uni-rank-v2 {
+                    width: 44px;
+                    height: 44px;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border-radius: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.2rem;
+                    font-weight: 700;
+                    color: white;
+                }
+
+                .uni-rank-v2.gold {
+                    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+                }
+
+                .uni-rank-v2.silver {
+                    background: linear-gradient(135deg, #94a3b8, #64748b);
+                }
+
+                .uni-rank-v2.bronze {
+                    background: linear-gradient(135deg, #d97706, #b45309);
+                }
+
+                .uni-info-v2 {
+                    flex: 1;
+                }
+
+                .uni-name-v2 {
+                    font-weight: 700;
+                    color: #1e293b;
+                    margin-bottom: 10px;
+                    font-size: 1rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .uni-match-bar-v2 {
+                    height: 6px;
+                    background: #e2e8f0;
+                    border-radius: 3px;
+                    overflow: hidden;
+                    margin-bottom: 10px;
+                }
+
+                .match-fill-v2 {
+                    height: 100%;
+                    border-radius: 3px;
+                    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                }
+
+                .uni-stats-v2 {
+                    display: flex;
+                    gap: 12px;
+                }
+
+                .pill-v2 {
+                    background: #f1f5f9;
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 0.7rem;
+                    font-weight: 600;
+                    color: #475569;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+
+                .pill-v2.high {
+                    background: #dcfce7;
+                    color: #16a34a;
+                }
+
+                .pill-v2.medium {
+                    background: #fef3c7;
+                    color: #d97706;
+                }
+
+                /* CONSEIL BUDGET */
+                .budget-tip-v2 {
+                    background: #fffbeb;
+                    border: 1px solid #fde68a;
+                    border-radius: 20px;
+                    padding: 16px 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    margin-bottom: 28px;
+                }
+
+                .tip-icon-v2 {
+                    width: 44px;
+                    height: 44px;
+                    background: #fef3c7;
+                    border-radius: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.3rem;
+                    color: #d97706;
+                }
+
+                /* BOUTON RESTART */
+                .restart-btn-v2 {
+                    width: 100%;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    border: none;
+                    padding: 18px;
+                    border-radius: 50px;
+                    font-size: 0.9rem;
+                    font-weight: 700;
+                    color: white;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+                }
+
+                .restart-btn-v2:hover {
+                    transform: scale(1.02);
+                    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+                }
+
+                .restart-btn-v2 i {
+                    transition: transform 0.3s;
+                }
+
+                .restart-btn-v2:hover i {
+                    transform: rotate(180deg);
+                }
+
+                /* ANIMATIONS */
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                .field-item-v2, .uni-card-v2 {
+                    animation: fadeInUp 0.4s ease-out;
+                    animation-fill-mode: both;
+                }
+
+                /* CONFETTI */
+                .confetti {
+                    position: fixed;
+                    width: 10px;
+                    height: 10px;
+                    position: absolute;
+                    animation: confettiFall 3s linear forwards;
+                    z-index: 1000;
+                    border-radius: 2px;
+                }
+
+                @keyframes confettiFall {
+                    0% {
+                        transform: translateY(-100vh) rotate(0deg);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translateY(100vh) rotate(360deg);
+                        opacity: 0;
+                    }
+                }
+
+                .empty-state {
+                    text-align: center;
+                    padding: 30px 20px;
+                    color: #94a3b8;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+
     showWelcome() {
         this.logger.log('Showing welcome screen');
         this.hideAllScreens();
@@ -209,14 +580,10 @@ class UIRenderer {
         this.announceToScreenReader('Bienvenue sur l\'application d\'orientation');
     }
 
-    /**
-     * Affiche la sélection du bac avec TOUTES les séries congolaises
-     */
     showBacSelection(availableCodes = null) {
         this.logger.log('Showing bac selection screen with full list');
         this.hideAllScreens();
         
-        // Structure complète des séries bac
         const bacGroups = [
             {
                 name: '📖 Lettres & Sciences Humaines',
@@ -336,9 +703,6 @@ class UIRenderer {
         this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat parmi les 26 séries disponibles');
     }
 
-    /**
-     * Retourne le libellé complet d'une série bac
-     */
     getBacLabel(code) {
         const labels = {
             'A': 'Lettres, langues et philosophie',
@@ -371,9 +735,6 @@ class UIRenderer {
         return labels[code] || 'Série générale';
     }
 
-    /**
-     * Retourne le groupe d'une série bac
-     */
     getBacGroup(code) {
         if (code === 'A') return 'humanities';
         if (['C', 'D', 'E'].includes(code)) return 'science';
@@ -388,7 +749,6 @@ class UIRenderer {
     handleBacSelection(bacCode) {
         this.logger.log(`Bac selected: ${bacCode}`);
         
-        // Visual feedback
         document.querySelectorAll('[data-bac-value]').forEach(btn => {
             btn.classList.remove('selected');
             if (btn.getAttribute('data-bac-value') === bacCode) {
@@ -402,7 +762,6 @@ class UIRenderer {
             }
         });
         
-        // Call callback
         this.onBacSelected(bacCode);
     }
 
@@ -800,13 +1159,95 @@ class UIRenderer {
     }
 
     renderResults(resultData) {
-        this.logger.log('Rendering results V2:', resultData);
+        this.logger.log('Rendering results V3 with modern design:', resultData);
 
         this.hideLoader();
         this.hideError();
 
-        if (this.elements.recommendationsContainer) {
-            this.elements.recommendationsContainer.innerHTML = '';
+        const container = this.elements.recommendationsContainer;
+        if (container) {
+            container.innerHTML = '';
+        }
+
+        this.createConfetti();
+
+        const resultHtml = `
+            <div class="result-container-v2">
+                <div class="result-card-v2">
+                    <div class="result-header-v2">
+                        <div class="score-circle-v2">
+                            <span class="score-value-v2">${Math.round((resultData.recommendations?.top_fields?.[0]?.score || 43) * 100)}</span>
+                            <span class="score-label-v2">% match</span>
+                        </div>
+                        <h2 class="result-title-v2">${this.escapeHtml(resultData.title || 'Profil Unique')}</h2>
+                        <div class="result-tags-v2">
+                            ${resultData.recommendations?.top_field_details?.slice(0, 2).map(tag => `
+                                <span class="tag-v2"><i class="fas fa-chart-line"></i> ${this.escapeHtml(tag.field_name?.toLowerCase())} (${Math.round(tag.score * 100)}%)</span>
+                            `).join('') || ''}
+                            ${resultData.bac_info ? `<span class="tag-v2 bac"><i class="fas fa-graduation-cap"></i> Bac ${resultData.bac_info.code}: ${Math.round((resultData.bac_info.boost || 1) * 64)}%</span>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-star"></i>
+                            <span>Tes meilleures filières</span>
+                        </div>
+                        <div class="fields-list-v2" id="fieldsListV2">
+                            ${this.renderFieldsList(resultData.recommendations?.top_field_details || resultData.recommendations?.top_fields || [])}
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-university"></i>
+                            <span>Où étudier</span>
+                        </div>
+                        <div class="universities-list-v2" id="universitiesListV2">
+                            ${this.renderUniversitiesList(resultData.recommendations?.universities || [])}
+                        </div>
+                    </div>
+
+                    ${resultData.parentBudget ? `
+                    <div class="budget-tip-v2">
+                        <div class="tip-icon-v2">
+                            <i class="fas fa-coins"></i>
+                        </div>
+                        <span>Filtre budget : <strong>${this.escapeHtml(resultData.parentBudget.replace('Conseil stratégique : ', ''))}</strong></span>
+                    </div>
+                    ` : ''}
+
+                    <button class="restart-btn-v2" id="restartBtnV2">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Recommencer l'aventure</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (container) {
+            container.innerHTML = resultHtml;
+            
+            const restartBtn = document.getElementById('restartBtnV2');
+            if (restartBtn) {
+                restartBtn.addEventListener('click', () => {
+                    if (window.orientationApp && window.orientationApp.restart) {
+                        window.orientationApp.restart();
+                    } else {
+                        window.location.reload();
+                    }
+                });
+            }
+        }
+
+        if (this.elements.finalTitle) {
+            this.elements.finalTitle.innerText = resultData.title || 'Profil Unique';
+        }
+        if (this.elements.finalDesc) {
+            this.elements.finalDesc.innerText = resultData.description || 'Votre profil d\'orientation a été calculé avec vos réponses.';
+        }
+        if (this.elements.aiInsight) {
+            this.elements.aiInsight.innerText = resultData.aiInsight || 'Ton profil montre une forte capacité d\'analyse et une belle progression dans tes choix.';
         }
 
         if (resultData.confidence_score) {
@@ -817,143 +1258,108 @@ class UIRenderer {
             this.showBacInfo(resultData.bac_info);
         }
 
-        if (this.elements.finalTitle) {
-            this.elements.finalTitle.innerText = resultData.title || 'Profil Unique';
-        }
-        if (this.elements.finalDesc) {
-            this.elements.finalDesc.innerText = resultData.description ||
-                'Votre profil d\'orientation a été calculé avec vos réponses.';
-        }
-        if (this.elements.aiInsight) {
-            this.elements.aiInsight.innerText = resultData.aiInsight ||
-                'Ton profil montre une forte capacité d\'analyse et une belle progression dans tes choix.';
-        }
-
-        if (resultData.parentBudget && this.elements.parentAddon) {
-            this.elements.parentAddon.style.display = 'block';
-            this.elements.parentAddon.innerText = `Conseil stratégique : ${resultData.parentBudget}`;
-        } else if (this.elements.parentAddon) {
-            this.elements.parentAddon.style.display = 'none';
-        }
-
-        if (resultData.recommendations) {
-            this.renderRecommendations(resultData.recommendations);
-        }
-
         this.scrollToTop();
         this.announceToScreenReader('Résultats affichés. ' + (resultData.aiInsight || ''));
     }
 
-    renderRecommendations(recommendations) {
-        this.logger.log('Rendering recommendations V2:', recommendations);
-
-        if (!this.elements.recommendationsContainer) {
-            this.logger.warn('Recommendations container not found');
-            return;
-        }
-
-        let html = '';
-
-        const topFields = recommendations.top_field_details || recommendations.top_fields || [];
-        if (topFields.length > 0) {
-            html += `
-                <div class="recommendation-section">
-                    <h3 class="section-title">🎯 Tes meilleures filières</h3>
-                    <div class="top-fields-grid">
+    renderFieldsList(fields) {
+        if (!fields || fields.length === 0) return '<div class="empty-state">Aucune filière recommandée</div>';
+        
+        return fields.slice(0, 5).map((field, index) => {
+            const fieldName = typeof field === 'string' ? field : (field.field_name || field.name || 'Filière');
+            const score = typeof field === 'object' ? (field.decision_score || field.score || 0) : 0.3;
+            const scorePercent = Math.round(score * 100);
+            let scoreClass = 'low';
+            if (scorePercent >= 60) scoreClass = 'high';
+            else if (scorePercent >= 40) scoreClass = 'medium';
+            
+            const icons = ['fa-bullhorn', 'fa-laptop-code', 'fa-users', 'fa-building', 'fa-chart-line'];
+            const icon = icons[index % icons.length];
+            
+            return `
+                <div class="field-item-v2" style="animation-delay: ${index * 0.05}s">
+                    <div class="field-name-v2">
+                        <i class="fas ${icon}"></i>
+                        <span>${this.escapeHtml(fieldName)}</span>
+                    </div>
+                    <span class="field-score-v2 ${scoreClass}">${scorePercent}%</span>
+                </div>
             `;
-            
-            topFields.slice(0, 5).forEach(field => {
-                const fieldName = typeof field === 'string' ? field : (field.field_name || field.name || 'Filière');
-                const score = typeof field === 'object' ? (field.decision_score || field.score || 0) : 0;
-                const scorePercent = Math.round(score * 100);
-                const cluster = typeof field === 'object' ? field.cluster : null;
-                const clusterIcon = this.getClusterIcon(cluster);
-                
-                html += `
-                    <div class="field-card">
-                        <div class="field-name">${clusterIcon} ${fieldName}</div>
-                        <div class="field-score">
-                            <div class="score-bar" style="width: ${scorePercent}%"></div>
-                            <span class="score-value">${scorePercent}%</span>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += `</div></div>`;
-        }
+        }).join('');
+    }
 
-        const universities = Array.isArray(recommendations.universities) ? recommendations.universities : [];
-        if (universities.length > 0) {
-            html += `
-                <div class="recommendation-section">
-                    <h3 class="section-title">🏫 Où étudier</h3>
-                    <div class="institutions-list">
-            `;
-            
-            universities.slice(0, 10).forEach(uni => {
-                const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
-                const matchCount = uni.matching_fields_count || 0;
-                const totalFields = uni.total_recommended_fields || topFields.length || 0;
-                const compatibility = uni.compatibility_score || (matchCount / Math.max(totalFields, 1));
-                const compatibilityPercent = Math.round(compatibility * 100);
-                
-                html += `
-                    <div class="institution-card" data-compatibility="${compatibilityPercent}">
-                        <div class="institution-name">${uniName}</div>
-                        <div class="institution-meta">
-                            <span class="match-badge ${this.getMatchBadgeClass(compatibility)}">
-                                ${compatibilityPercent}% compatible
-                            </span>
-                            ${matchCount > 0 ? `<span class="fields-count">📚 ${matchCount}/${totalFields} filières</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += `</div></div>`;
-        } else {
-            html += `
-                <div class="recommendation-section">
-                    <h3 class="section-title">🏫 Où étudier</h3>
-                    <div class="empty-state">
-                        <p>Aucune université ne propose ces filières pour le moment.</p>
-                        <small>Consultez un conseiller d'orientation pour explorer d'autres options.</small>
-                    </div>
+    renderUniversitiesList(universities) {
+        if (!universities || universities.length === 0) {
+            return `
+                <div class="empty-state">
+                    <p>Aucune université ne propose ces filières pour le moment.</p>
+                    <small>Consultez un conseiller d'orientation pour explorer d'autres options.</small>
                 </div>
             `;
         }
-
-        const centres = Array.isArray(recommendations.centres) ? recommendations.centres : [];
-        if (centres.length > 0) {
-            html += `
-                <div class="recommendation-section">
-                    <h3 class="section-title">🏢 Formations professionnelles</h3>
-                    <div class="institutions-list">
-            `;
+        
+        const ranks = ['gold', 'silver', 'bronze', ''];
+        const rankIcons = ['fa-crown', 'fa-medal', 'fa-trophy', 'fa-arrow-up'];
+        
+        return universities.slice(0, 6).map((uni, index) => {
+            const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
+            const matchCount = uni.matching_fields_count || 0;
+            const totalFields = uni.total_recommended_fields || 5;
+            const compatibility = uni.compatibility_score || (matchCount / Math.max(totalFields, 1));
+            const compatibilityPercent = Math.round(compatibility * 100);
             
-            centres.slice(0, 5).forEach(centre => {
-                const centreName = centre.target_name || centre.nom || centre.name || 'Inconnu';
-                const matchCount = centre.matching_fields_count || 0;
-                
-                html += `
-                    <div class="institution-card is-centre">
-                        <div class="institution-name">${centreName}</div>
-                        <div class="institution-meta">
-                            ${matchCount > 0 ? `<span class="match-badge">📚 ${matchCount} filières</span>` : '<span class="match-badge neutral">Formation généraliste</span>'}
+            let pillClass = '';
+            if (compatibilityPercent >= 70) pillClass = 'high';
+            else if (compatibilityPercent >= 50) pillClass = 'medium';
+            
+            const rankClass = ranks[index] || '';
+            const rankIcon = rankIcons[index] || 'fa-building-columns';
+            
+            return `
+                <div class="uni-card-v2" style="animation-delay: ${0.1 + index * 0.05}s">
+                    <div class="uni-rank-v2 ${rankClass}">
+                        <i class="fas ${rankIcon}"></i>
+                    </div>
+                    <div class="uni-info-v2">
+                        <div class="uni-name-v2">
+                            <i class="fas fa-building-columns"></i>
+                            ${this.escapeHtml(uniName)}
+                        </div>
+                        <div class="uni-match-bar-v2">
+                            <div class="match-fill-v2" style="width: ${compatibilityPercent}%"></div>
+                        </div>
+                        <div class="uni-stats-v2">
+                            <span class="pill-v2 ${pillClass}"><i class="fas fa-check-circle"></i> ${compatibilityPercent}% compatible</span>
+                            <span class="pill-v2"><i class="fas fa-book"></i> ${matchCount}/${totalFields} filières</span>
                         </div>
                     </div>
-                `;
-            });
+                </div>
+            `;
+        }).join('');
+    }
+
+    createConfetti() {
+        const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#fbbf24', '#10b981'];
+        for (let i = 0; i < 80; i++) {
+            const confetti = document.createElement('div');
+            confetti.classList.add('confetti');
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.width = Math.random() * 8 + 4 + 'px';
+            confetti.style.height = Math.random() * 8 + 4 + 'px';
+            confetti.style.animationDelay = Math.random() * 2 + 's';
+            confetti.style.animationDuration = Math.random() * 2 + 2 + 's';
+            document.body.appendChild(confetti);
             
-            html += `</div></div>`;
+            setTimeout(() => confetti.remove(), 4000);
         }
+    }
 
-        if (!html) {
-            html = '<div class="empty-state"><p>Aucune recommandation disponible pour le moment.</p></div>';
-        }
-
-        this.elements.recommendationsContainer.innerHTML = html;
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     getClusterIcon(cluster) {

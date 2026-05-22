@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Orienta : Ton Avenir, Ton Jeu</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>Universearch - Orientation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <style>
@@ -20,7 +20,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
             background: var(--bg);
             color: var(--text);
             display: flex;
@@ -201,15 +201,6 @@
             line-height: 1.4;
         }
 
-        /* Couleurs par groupe */
-        .bac-group[data-group="humanities"] .bac-group-header { border-bottom-color: #8b5cf6; }
-        .bac-group[data-group="science"] .bac-group-header { border-bottom-color: #3b82f6; }
-        .bac-group[data-group="industrial"] .bac-group-header { border-bottom-color: #ef4444; }
-        .bac-group[data-group="it"] .bac-group-header { border-bottom-color: #10b981; }
-        .bac-group[data-group="business"] .bac-group-header { border-bottom-color: #f59e0b; }
-        .bac-group[data-group="agriculture"] .bac-group-header { border-bottom-color: #84cc16; }
-        .bac-group[data-group="vocational"] .bac-group-header { border-bottom-color: #6b7280; }
-
         .bac-note {
             margin-top: 24px;
             padding: 14px 16px;
@@ -332,7 +323,7 @@
             width: 100%;
         }
 
-        /* Résultats */
+        /* Résultats - Styles de base (seront remplacés par UIRenderer) */
         .result-box {
             background: linear-gradient(145deg, var(--primary), #4338ca);
             padding: 30px;
@@ -340,21 +331,10 @@
             text-align: center;
             margin-top: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-            animation: glow 2s infinite alternate;
-        }
-        @keyframes glow {
-            from { box-shadow: 0 0 10px rgba(99,102,241,0.3); }
-            to { box-shadow: 0 0 25px rgba(99,102,241,0.7); }
         }
         
         #recommendationsContainer {
             margin-top: 30px;
-        }
-        
-        #recommendationsContainer h3 {
-            color: var(--accent);
-            margin-top: 20px;
-            margin-bottom: 15px;
         }
         
         .restart-btn {
@@ -375,7 +355,6 @@
             background: #f1f5f9;
         }
 
-        /* Recommandations styling */
         #parentAddon {
             animation: slideUp 0.5s ease-out;
         }
@@ -383,88 +362,6 @@
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-
-        .top-fields {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .top-field-tag {
-            background: linear-gradient(135deg, var(--primary), #8b5cf6);
-            color: white;
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            box-shadow: 0 4px 12px rgba(99,102,241,0.3);
-        }
-
-        .rec-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: grid;
-            gap: 10px;
-        }
-
-        .rec-list-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 14px 16px;
-            border-radius: 16px;
-            background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.07));
-            border: 1px solid rgba(255,255,255,0.14);
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
-            backdrop-filter: blur(10px);
-        }
-
-        .rec-list-name {
-            color: #f8fafc;
-            font-weight: 700;
-            line-height: 1.4;
-        }
-
-        .rec-list-meta {
-            flex-shrink: 0;
-            color: #fef3c7;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: rgba(244, 63, 94, 0.16);
-            border: 1px solid rgba(251, 191, 36, 0.28);
-        }
-
-        .match-badge {
-            background: rgba(244,63,94,0.1);
-            color: var(--accent);
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            border: 1px solid rgba(244,63,94,0.2);
-        }
-
-        .institutions-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .institution-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 14px;
-            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -572,13 +469,11 @@
         console.log('  window.CONFIG');
         console.log('  debugAutoStart() - Run diagnosis on auto-start');
         
-        // Run automatic diagnostic after app is initialized
         setTimeout(() => {
             debugAutoStart();
         }, 1000);
     });
     
-    // Expose diagnostic function globally
     window.debugAutoStart = debugAutoStart;
 </script>
 
