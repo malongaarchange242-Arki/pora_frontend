@@ -121,8 +121,8 @@ class OrientationApp {
             const serviceConfig = {
                 SUPABASE_URL: window.CONFIG?.SUPABASE?.URL || process.env.SUPABASE_URL,
                 SUPABASE_ANON_KEY: window.CONFIG?.SUPABASE?.ANON_KEY || process.env.SUPABASE_ANON_KEY,
-                PROA_URL: window.CONFIG?.SERVICES?.PROA_URL || 'https://universearch-proa-service.onrender.com',
-                PORA_URL: window.CONFIG?.SERVICES?.PORA_URL || 'https://universearch-pora-service.onrender.com',
+                PROA_URL: window.CONFIG?.SERVICES?.PROA_URL || 'https://universearch-proa-service-weza.onrender.com',
+                PORA_URL: window.CONFIG?.SERVICES?.PORA_URL || 'https://universearch-pora-service-1.onrender.com',
                 TIMEOUT_MS: window.CONFIG?.SERVICES?.TIMEOUT_MS || 10000,
                 RETRY_ATTEMPTS: window.CONFIG?.SERVICES?.RETRY_ATTEMPTS || 3,
                 RETRY_DELAY_MS: window.CONFIG?.SERVICES?.RETRY_DELAY_MS || 1000,
