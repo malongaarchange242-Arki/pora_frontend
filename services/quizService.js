@@ -619,7 +619,8 @@ class QuizService {
             response_metadata: responseMetadata,
             quiz_metadata: {
                 role: this.currentRole,
-                total_questions: this.questions[this.currentRole]?.length || 0,
+                total_questions: Object.keys(proaResponses).length,
+                displayed_questions: this.questions[this.currentRole]?.length || 0,
                 duration_ms: quizDuration,
                 completed_at: new Date().toISOString(),
                 bac_type: this.bacType
