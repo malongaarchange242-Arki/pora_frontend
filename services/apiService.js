@@ -1199,24 +1199,24 @@ class APIService {
 
     async strictFilterPoraRecommendations(type, recommendations = [], recommendedFields = []) {
         if (!Array.isArray(recommendations) || recommendations.length === 0) {
-            return [];
+            return recommendations;
         }
 
         if (!this.supabase) {
             this.logger.warn(`⚠️ Supabase unavailable: strict filtering skipped for ${type}`);
-            return [];
+            return recommendations;
         }
 
         const uniqueRecommendedFields = this.getUniqueRecommendedFields(recommendedFields);
         if (uniqueRecommendedFields.length === 0) {
             this.logger.warn(`⚠️ No recommended fields provided for strict filtering (${type})`);
-            return [];
+            return recommendations;
         }
 
         const entityIds = this.extractRecommendationIds(recommendations, type);
         if (entityIds.length === 0) {
             this.logger.warn(`⚠️ No candidate ids found for strict filtering (${type})`);
-            return [];
+            return recommendations;
         }
 
         const filieresByEntity = type === 'universites'
@@ -1233,6 +1233,11 @@ class APIService {
             });
 
         this.logger.log(`✅ Strictly filtered ${type}: ${enriched.length}/${recommendations.length} kept`);
+        if (enriched.length === 0) {
+            this.logger.warn(`Strict filtering removed all ${type}; keeping PORA server recommendations`);
+            return recommendations;
+        }
+
         return enriched;
     }
 
@@ -1322,8 +1327,15 @@ class APIService {
             return null;
         }
 
-        const realFields = this.dedupeFieldNames(filieresByEntity[entityId] || []);
-        const matchedFields = this.findMatchedFields(realFields, recommendedFields);
+        const realFields = this.dedupeFieldNames(
+            filieresByEntity[entityId] || item.real_fields || item.filieres || []
+        );
+        const serverMatchedFields = Array.isArray(item.matched_fields)
+            ? this.dedupeFieldNames(item.matched_fields)
+            : [];
+        const matchedFields = realFields.length > 0
+            ? this.findMatchedFields(realFields, recommendedFields)
+            : serverMatchedFields;
         const totalRecommendedFields = recommendedFields.length;
 
         return {

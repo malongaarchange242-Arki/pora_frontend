@@ -15,7 +15,7 @@ const ENV = {
     // ORIENTATION SERVICES
     // ============================================
     PROA_SERVICE_URL: 'https://universearch-proa-service-weza.onrender.com',
-    PORA_SERVICE_URL: 'https://universearch-pora-service.onrender.com',
+    PORA_SERVICE_URL: 'https://universearch-pora-service-1.onrender.com',
 
     // ============================================
     // API SETTINGS
