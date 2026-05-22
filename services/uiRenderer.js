@@ -3,7 +3,7 @@
  * Handles all DOM updates: questions, results, loaders, errors
  * 
  * AMÉLIORATIONS V2:
- * - Support bac congolais
+ * - Support bac congolais complet (26 séries)
  * - Affichage des scores de confiance
  * - Animations améliorées
  * - Accessibilité (ARIA labels)
@@ -209,25 +209,122 @@ class UIRenderer {
         this.announceToScreenReader('Bienvenue sur l\'application d\'orientation');
     }
 
-    showBacSelection(availableCodes = ['C', 'D', 'A', 'G', 'E', 'H']) {
-        this.logger.log('Showing bac selection screen');
+    /**
+     * Affiche la sélection du bac avec TOUTES les séries congolaises
+     */
+    showBacSelection(availableCodes = null) {
+        this.logger.log('Showing bac selection screen with full list');
         this.hideAllScreens();
         
-        // Populate bac options
+        // Structure complète des séries bac
+        const bacGroups = [
+            {
+                name: '📖 Lettres & Sciences Humaines',
+                icon: '📖',
+                color: '#8b5cf6',
+                series: [
+                    { code: 'A', label: 'Lettres, langues et philosophie', fields: 'Droit, Communication, Journalisme, Enseignement' }
+                ]
+            },
+            {
+                name: '🔬 Sciences',
+                icon: '🔬',
+                color: '#3b82f6',
+                series: [
+                    { code: 'C', label: 'Mathématiques et sciences physiques', fields: 'Informatique, Ingénierie, Mathématiques, Data Science' },
+                    { code: 'D', label: 'Sciences naturelles et biologie', fields: 'Médecine, Biologie, Chimie, Pharmacie' },
+                    { code: 'E', label: 'Mathématiques techniques et technologie', fields: 'Génie civil, Mécanique, Électrotechnique' }
+                ]
+            },
+            {
+                name: '🏭 Filières Industrielles',
+                icon: '🏭',
+                color: '#ef4444',
+                series: [
+                    { code: 'F1', label: 'Construction mécanique', fields: 'Mécanique, Maintenance industrielle, Production' },
+                    { code: 'F2', label: 'Électronique', fields: 'Électronique, Télécoms, Robotique' },
+                    { code: 'F3', label: 'Électrotechnique', fields: 'Électricité, Énergie, Automatisme' },
+                    { code: 'F4', label: 'Génie civil et bâtiment', fields: 'BTP, Architecture, Urbanisme' }
+                ]
+            },
+            {
+                name: '💻 Informatique & Tertiaire',
+                icon: '💻',
+                color: '#10b981',
+                series: [
+                    { code: 'H1', label: 'Informatique de gestion', fields: 'Développement, Data, Systèmes d\'information' },
+                    { code: 'H2', label: 'Communication administrative', fields: 'RH, Communication, Gestion' },
+                    { code: 'H3', label: 'Action commerciale', fields: 'Commerce, Marketing, Vente' },
+                    { code: 'H4', label: 'Maintenance informatique', fields: 'Réseaux, Support IT, Cybersécurité' },
+                    { code: 'H5', label: 'Techniques administratives', fields: 'Administration, Gestion de projets' }
+                ]
+            },
+            {
+                name: '💰 Gestion & Commerce',
+                icon: '💰',
+                color: '#f59e0b',
+                series: [
+                    { code: 'G1', label: 'Secrétariat de direction', fields: 'Gestion, RH, Assistant de direction' },
+                    { code: 'G2', label: 'Comptabilité et gestion financière', fields: 'Comptabilité, Finance, Audit' },
+                    { code: 'G3', label: 'Commerce et marketing', fields: 'Marketing, Commerce, Management' },
+                    { code: 'BG', label: 'Banque et gestion', fields: 'Finance, Banque, Assurance' }
+                ]
+            },
+            {
+                name: '🌾 Agriculture',
+                icon: '🌾',
+                color: '#84cc16',
+                series: [
+                    { code: 'R1', label: 'Production végétale', fields: 'Agronomie, Agriculture, Cultures' },
+                    { code: 'R2', label: 'Production animale', fields: 'Élevage, Zootechnie' },
+                    { code: 'R3', label: 'Santé animale', fields: 'Vétérinaire, Santé animale' },
+                    { code: 'R4', label: 'Machiniste agricole', fields: 'Mécanique agricole' },
+                    { code: 'R5', label: 'Économie et gestion coopératives', fields: 'Gestion coopérative, Économie rurale' },
+                    { code: 'R6', label: 'Génie rural', fields: 'Infrastructures rurales, Hydraulique agricole' }
+                ]
+            },
+            {
+                name: '🔧 Filières Professionnelles',
+                icon: '🔧',
+                color: '#6b7280',
+                series: [
+                    { code: 'P2', label: 'Génie civil', fields: 'BTP, Construction, Travaux publics' },
+                    { code: 'P6', label: 'Mécanique de production', fields: 'Mécanique industrielle' },
+                    { code: 'P7', label: 'Électrotechnique et équipement de communication', fields: 'Électricité, Équipements' }
+                ]
+            }
+        ];
+
         const bacContainer = document.getElementById('bacOptions');
         if (bacContainer) {
             bacContainer.innerHTML = '';
-            availableCodes.forEach(code => {
-                const button = document.createElement('button');
-                button.className = 'bac-option-btn';
-                button.setAttribute('data-bac-value', code);
-                button.setAttribute('role', 'button');
-                button.setAttribute('aria-label', `Série bac ${code}`);
-                button.innerHTML = `
-                    <span class="bac-code">${code}</span>
-                    <span class="bac-label">${this.getBacLabel(code)}</span>
+            
+            bacGroups.forEach(group => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'bac-group';
+                groupDiv.style.marginBottom = '24px';
+                
+                groupDiv.innerHTML = `
+                    <div class="bac-group-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid ${group.color}20;">
+                        <span style="font-size: 1.5rem;">${group.icon}</span>
+                        <h3 style="color: ${group.color}; margin: 0; font-size: 1.1rem;">${group.name}</h3>
+                    </div>
+                    <div class="bac-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
                 `;
-                bacContainer.appendChild(button);
+                
+                group.series.forEach(series => {
+                    groupDiv.innerHTML += `
+                        <button class="bac-option-btn" data-bac-value="${series.code}" 
+                                style="display: flex; flex-direction: column; align-items: flex-start; padding: 12px; border: 1px solid ${group.color}30; border-radius: 12px; background: ${group.color}08; cursor: pointer; transition: all 0.2s; text-align: left; width: 100%;">
+                            <span style="font-weight: bold; font-size: 1.1rem; color: ${group.color};">${series.code}</span>
+                            <span style="font-size: 0.85rem; margin-top: 4px;">${series.label}</span>
+                            <span style="font-size: 0.75rem; color: #666; margin-top: 6px;">${series.fields}</span>
+                        </button>
+                    `;
+                });
+                
+                groupDiv.innerHTML += `</div>`;
+                bacContainer.appendChild(groupDiv);
             });
         }
         
@@ -236,25 +333,56 @@ class UIRenderer {
             this.elements.gameHeader.classList.remove('active');
             this.elements.gameHeader.style.opacity = '1';
         }
-        this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat');
+        this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat parmi les 26 séries disponibles');
     }
 
+    /**
+     * Retourne le libellé complet d'une série bac
+     */
     getBacLabel(code) {
         const labels = {
-            'C': 'Mathématiques',
-            'D': 'Sciences expérimentales',
-            'A': 'Lettres',
-            'A1': 'Lettres',
-            'A2': 'Lettres',
-            'G': 'Commerciale',
-            'G1': 'Commerciale',
-            'G2': 'Commerciale',
-            'E': 'Technique',
-            'F1': 'Technique',
-            'H': 'Informatique',
-            'H1': 'Informatique'
+            'A': 'Lettres, langues et philosophie',
+            'C': 'Mathématiques et sciences physiques',
+            'D': 'Sciences naturelles et biologie',
+            'E': 'Mathématiques techniques et technologie',
+            'F1': 'Construction mécanique',
+            'F2': 'Électronique',
+            'F3': 'Électrotechnique',
+            'F4': 'Génie civil et bâtiment',
+            'H1': 'Informatique de gestion',
+            'H2': 'Communication administrative',
+            'H3': 'Action commerciale',
+            'H4': 'Maintenance informatique',
+            'H5': 'Techniques administratives',
+            'G1': 'Secrétariat de direction',
+            'G2': 'Comptabilité et gestion financière',
+            'G3': 'Commerce et marketing',
+            'BG': 'Banque et gestion',
+            'R1': 'Production végétale',
+            'R2': 'Production animale',
+            'R3': 'Santé animale',
+            'R4': 'Machiniste agricole',
+            'R5': 'Économie et gestion coopératives',
+            'R6': 'Génie rural',
+            'P2': 'Génie civil',
+            'P6': 'Mécanique de production',
+            'P7': 'Électrotechnique et équipement de communication'
         };
-        return labels[code] || 'Générale';
+        return labels[code] || 'Série générale';
+    }
+
+    /**
+     * Retourne le groupe d'une série bac
+     */
+    getBacGroup(code) {
+        if (code === 'A') return 'humanities';
+        if (['C', 'D', 'E'].includes(code)) return 'science';
+        if (['F1', 'F2', 'F3', 'F4'].includes(code)) return 'industrial';
+        if (['H1', 'H2', 'H3', 'H4', 'H5'].includes(code)) return 'it';
+        if (['G1', 'G2', 'G3', 'BG'].includes(code)) return 'business';
+        if (['R1', 'R2', 'R3', 'R4', 'R5', 'R6'].includes(code)) return 'agriculture';
+        if (['P2', 'P6', 'P7'].includes(code)) return 'vocational';
+        return 'general';
     }
 
     handleBacSelection(bacCode) {
@@ -265,7 +393,12 @@ class UIRenderer {
             btn.classList.remove('selected');
             if (btn.getAttribute('data-bac-value') === bacCode) {
                 btn.classList.add('selected');
+                btn.style.border = '2px solid #10b981';
+                btn.style.background = '#10b98115';
                 this.hapticFeedback();
+            } else {
+                btn.style.border = '';
+                btn.style.background = '';
             }
         });
         
@@ -349,7 +482,6 @@ class UIRenderer {
 
         const grid = this.elements.optionsGrid;
         if (grid) {
-            // Fade out animation
             grid.style.opacity = '0';
             grid.style.transition = 'opacity 150ms ease';
             
@@ -632,8 +764,9 @@ class UIRenderer {
         this.bacInfo = bacInfo;
         if (this.elements.bacInfoContainer) {
             this.elements.bacInfoContainer.style.display = 'block';
+            const fullLabel = this.getBacLabel(bacInfo.code);
             this.elements.bacInfoContainer.innerHTML = `
-                <strong>🎓 Bac ${bacInfo.code}</strong> - ${bacInfo.label}
+                <strong>🎓 Bac ${bacInfo.code}</strong> - ${fullLabel}
                 ${bacInfo.boost > 1 ? `<span style="margin-left: 8px; color: #10b981;">+${Math.round((bacInfo.boost - 1) * 100)}%</span>` : ''}
             `;
         }
@@ -672,22 +805,18 @@ class UIRenderer {
         this.hideLoader();
         this.hideError();
 
-        // Reset container
         if (this.elements.recommendationsContainer) {
             this.elements.recommendationsContainer.innerHTML = '';
         }
 
-        // Display confidence badge if available
         if (resultData.confidence_score) {
             this.showConfidenceBadge(resultData.confidence_score, resultData.reliability_label);
         }
 
-        // Display bac info if available
         if (resultData.bac_info) {
             this.showBacInfo(resultData.bac_info);
         }
 
-        // Main content
         if (this.elements.finalTitle) {
             this.elements.finalTitle.innerText = resultData.title || 'Profil Unique';
         }
@@ -725,7 +854,6 @@ class UIRenderer {
 
         let html = '';
 
-        // Top fields section
         const topFields = recommendations.top_field_details || recommendations.top_fields || [];
         if (topFields.length > 0) {
             html += `
@@ -755,7 +883,6 @@ class UIRenderer {
             html += `</div></div>`;
         }
 
-        // Universities section
         const universities = Array.isArray(recommendations.universities) ? recommendations.universities : [];
         if (universities.length > 0) {
             html += `
@@ -797,7 +924,6 @@ class UIRenderer {
             `;
         }
 
-        // Centres section
         const centres = Array.isArray(recommendations.centres) ? recommendations.centres : [];
         if (centres.length > 0) {
             html += `

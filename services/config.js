@@ -244,7 +244,7 @@ const CONFIG = {
             const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
             if (!isLocalhost) {
                 console.warn('⚠️ Ignoring localhost PROA_URL, using production fallback');
-                this.SERVICES.PROA_URL = 'https://universearch-proa-service.onrender.com';
+                this.SERVICES.PROA_URL = 'https://universearch-proa-service-weza.onrender.com';
             }
         }
         
@@ -253,7 +253,7 @@ const CONFIG = {
             const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
             if (!isLocalhost) {
                 console.warn('⚠️ Ignoring localhost PORA_URL, using production fallback');
-                this.SERVICES.PORA_URL = 'https://universearch-pora-service.onrender.com';
+                this.SERVICES.PORA_URL = 'https://universearch-pora-service-1.onrender.com';
             }
         }
         

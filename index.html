@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Orienta : Ton Avenir, Ton Jeu</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -81,8 +81,8 @@
         }
 
         /* Menu Principal */
-        .hero-title { font-size: 2.5rem; font-weight: 800; margin-top: 40px; line-height: 1.1; }
-        .hero-sub { color: #94a3b8; margin: 15px 0 40px 0; }
+        .hero-title { font-size: 2rem; font-weight: 800; margin-top: 20px; line-height: 1.2; }
+        .hero-sub { color: #94a3b8; margin: 15px 0 25px 0; font-size: 0.9rem; }
 
         .page-loader {
             min-height: calc(100vh - 40px);
@@ -112,52 +112,114 @@
         .role-card {
             background: var(--card-bg);
             border: 1px solid var(--glass);
-            padding: 25px;
+            padding: 20px;
             border-radius: 24px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             cursor: pointer;
             transition: 0.3s;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+            color: var(--text);
+        }
+        .role-card:active { transform: scale(0.98); background: var(--glass); }
+        
+        /* Style pour les cartes bac avec groupes */
+        .bac-group {
+            margin-bottom: 28px;
+        }
+
+        .bac-group-header {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid rgba(99,102,241,0.3);
         }
-        .role-card:active { transform: scale(0.96); background: var(--glass); }
-        .role-icon { font-size: 2.5rem; }
 
-        .bac-grid {
-            display: grid;
-            gap: 14px;
+        .bac-group-icon {
+            font-size: 1.5rem;
+        }
+
+        .bac-group-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .bac-cards-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .bac-card {
-            width: 100%;
-            display: block;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
             text-align: left;
+            width: 100%;
+            font-family: inherit;
             color: var(--text);
-            font: inherit;
         }
 
-        .bac-code {
-            font-size: 1.1rem;
+        .bac-card:hover {
+            background: rgba(99,102,241,0.1);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .bac-card.selected {
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));
+            border: 2px solid var(--primary);
+        }
+
+        .bac-card-code {
+            font-size: 1rem;
             font-weight: 800;
             margin-bottom: 6px;
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(99,102,241,0.2);
         }
 
-        .bac-desc {
-            font-size: 0.88rem;
-            color: #cbd5e1;
-            line-height: 1.45;
+        .bac-card-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #e2e8f0;
         }
+
+        .bac-card-fields {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        /* Couleurs par groupe */
+        .bac-group[data-group="humanities"] .bac-group-header { border-bottom-color: #8b5cf6; }
+        .bac-group[data-group="science"] .bac-group-header { border-bottom-color: #3b82f6; }
+        .bac-group[data-group="industrial"] .bac-group-header { border-bottom-color: #ef4444; }
+        .bac-group[data-group="it"] .bac-group-header { border-bottom-color: #10b981; }
+        .bac-group[data-group="business"] .bac-group-header { border-bottom-color: #f59e0b; }
+        .bac-group[data-group="agriculture"] .bac-group-header { border-bottom-color: #84cc16; }
+        .bac-group[data-group="vocational"] .bac-group-header { border-bottom-color: #6b7280; }
 
         .bac-note {
-            margin-top: 18px;
+            margin-top: 24px;
             padding: 14px 16px;
             border-radius: 16px;
             background: rgba(244, 63, 94, 0.08);
             border: 1px solid rgba(244, 63, 94, 0.2);
             color: #fecdd3;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             line-height: 1.5;
+            text-align: center;
         }
 
         /* Questions */
@@ -323,54 +385,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 🔥 NEW CLEAN RECOMMENDATION CARDS */
-        .rec-card.clean {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            padding: 14px;
-            border-radius: 14px;
-            margin-bottom: 12px;
-            transition: transform 0.2s;
-        }
-        .rec-card.clean:hover {
-            transform: translateY(-2px);
-            background: rgba(255,255,255,0.06);
-        }
-
-        .rec-title {
-            font-weight: 700;
-            margin-bottom: 8px;
-            color: var(--text);
-        }
-
-        .rec-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        .tag {
-            background: rgba(99,102,241,0.15);
-            color: var(--primary);
-            padding: 5px 10px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        /* 🔥 MATCH BADGE */
-        .match-badge {
-            background: rgba(244,63,94,0.1);
-            color: var(--accent);
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            border: 1px solid rgba(244,63,94,0.2);
-        }
-
-        /* 🔥 TOP FIELDS SECTION */
         .top-fields {
             display: flex;
             flex-wrap: wrap;
@@ -386,11 +400,6 @@
             font-size: 0.8rem;
             font-weight: 700;
             box-shadow: 0 4px 12px rgba(99,102,241,0.3);
-        }
-
-        .top-field-tag small {
-            opacity: 0.85;
-            font-weight: 600;
         }
 
         .rec-list {
@@ -431,12 +440,32 @@
             border: 1px solid rgba(251, 191, 36, 0.28);
         }
 
-        .rec-list-item.is-secondary .rec-list-meta {
-            color: #dbeafe;
-            background: rgba(59, 130, 246, 0.16);
-            border-color: rgba(96, 165, 250, 0.3);
+        .match-badge {
+            background: rgba(244,63,94,0.1);
+            color: var(--accent);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            border: 1px solid rgba(244,63,94,0.2);
         }
 
+        .institutions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .institution-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 </head>
 <body>
@@ -454,42 +483,14 @@
     </div>
 
     <div id="bacScreen" class="screen">
-        <h1 class="hero-title" style="font-size: 2rem; margin-top: 20px;">Quel est ton type de bac ?</h1>
-        <p class="hero-sub">Cette information est obligatoire pour renforcer la coherence academique de l'orientation.</p>
+        <h1 class="hero-title">🎓 Quel est ton type de bac ?</h1>
+        <p class="hero-sub">Cette information est obligatoire pour renforcer la cohérence académique de l'orientation.</p>
 
-        <div class="bac-grid">
-            <button class="role-card bac-card" type="button" data-bac-value="A">
-                <div class="bac-code">Bac A</div>
-                <div class="bac-desc">Filieres litteraires, droit, communication et sciences humaines.</div>
-            </button>
-
-            <button class="role-card bac-card" type="button" data-bac-value="C/D">
-                <div class="bac-code">Bac C/D</div>
-                <div class="bac-desc">Maths, informatique, ingenierie, medecine et autres filieres scientifiques.</div>
-            </button>
-
-            <button class="role-card bac-card" type="button" data-bac-value="E/F">
-                <div class="bac-code">Bac E/F</div>
-                <div class="bac-desc">Genie electrique, mecanique, industrie et techniques industrielles.</div>
-            </button>
-
-            <button class="role-card bac-card" type="button" data-bac-value="H">
-                <div class="bac-code">Bac H</div>
-                <div class="bac-desc">Informatique, telecoms, systemes, reseaux et data.</div>
-            </button>
-
-            <button class="role-card bac-card" type="button" data-bac-value="G/BG">
-                <div class="bac-code">Bac G/BG</div>
-                <div class="bac-desc">Comptabilite, management, commerce, ressources humaines et gestion.</div>
-            </button>
-
-            <button class="role-card bac-card" type="button" data-bac-value="P">
-                <div class="bac-code">Bac P</div>
-                <div class="bac-desc">Metiers pratiques, maintenance, BTP et filieres techniques professionnelles.</div>
-            </button>
+        <div id="bacOptions">
+            <!-- Les séries bac seront générées dynamiquement par UIRenderer.js -->
         </div>
 
-        <p class="bac-note">Selection obligatoire pour continuer. Sans type de bac, PROA bascule en mode de recommandations plus faibles.</p>
+        <p class="bac-note">📌 Sélection obligatoire pour continuer. Sans type de bac, les recommandations seront moins précises.</p>
     </div>
 
     <div id="quizScreen" class="screen">
