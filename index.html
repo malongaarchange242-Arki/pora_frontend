@@ -11,17 +11,18 @@
         :root {
             --primary: #6366f1;
             --accent: #f43f5e;
-            --bg: #0f172a;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --glass: rgba(255, 255, 255, 0.1);
-            --text: #f8fafc;
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --glass: rgba(0, 0, 0, 0.05);
+            --text: #1e293b;
+            --text-secondary: #64748b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
         body {
             font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
-            background: var(--bg);
+            background: linear-gradient(145deg, #f5f7fa 0%, #eef2f6 100%);
             color: var(--text);
             display: flex;
             justify-content: center;
@@ -34,11 +35,12 @@
             width: 100%;
             max-width: 480px;
             min-height: 100vh;
-            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            background: white;
             display: flex;
             flex-direction: column;
             padding: 20px;
             position: relative;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.05);
         }
 
         /* Barre de progression style "Game" */
@@ -46,28 +48,26 @@
         .game-header.active { display: block; }
         
         .level-badge {
-            background: linear-gradient(135deg, rgba(99,102,241,0.95), rgba(139,92,246,0.95));
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
             padding: 8px 14px;
             border-radius: 20px;
             font-size: 0.78rem;
             font-weight: 800;
             margin-bottom: 8px;
             display: inline-block;
-            box-shadow: 0 12px 30px rgba(99,102,241,0.22);
+            color: white;
         }
 
         .progress-track {
             height: 10px;
-            background: rgba(255,255,255,0.1);
+            background: #e2e8f0;
             border-radius: 5px;
             overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.1);
         }
         #progress-fill {
             height: 100%;
             width: 0%;
             background: linear-gradient(90deg, var(--primary), #8b5cf6);
-            box-shadow: 0 0 15px var(--primary);
             transition: width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
@@ -81,8 +81,8 @@
         }
 
         /* Menu Principal */
-        .hero-title { font-size: 2rem; font-weight: 800; margin-top: 20px; line-height: 1.2; }
-        .hero-sub { color: #94a3b8; margin: 15px 0 25px 0; font-size: 0.9rem; }
+        .hero-title { font-size: 2rem; font-weight: 800; margin-top: 20px; line-height: 1.2; color: #1e293b; }
+        .hero-sub { color: #64748b; margin: 15px 0 25px 0; font-size: 0.9rem; }
 
         .page-loader {
             min-height: calc(100vh - 40px);
@@ -92,26 +92,32 @@
             gap: 18px;
         }
 
-        .page-loader .spinner {
-            margin-bottom: 4px;
-        }
-
         .loading-title {
             font-size: 1.65rem;
             font-weight: 800;
             line-height: 1.25;
+            color: #1e293b;
         }
 
         .loading-sub {
             max-width: 320px;
-            color: #94a3b8;
+            color: #64748b;
             font-size: 0.95rem;
             line-height: 1.55;
         }
 
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(99, 102, 241, 0.2);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
         .role-card {
-            background: var(--card-bg);
-            border: 1px solid var(--glass);
+            background: white;
+            border: 1px solid #e2e8f0;
             padding: 20px;
             border-radius: 24px;
             margin-bottom: 12px;
@@ -120,94 +126,23 @@
             width: 100%;
             text-align: left;
             font-family: inherit;
-            color: var(--text);
+            color: #1e293b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
-        .role-card:active { transform: scale(0.98); background: var(--glass); }
-        
-        /* Style pour les cartes bac avec groupes */
-        .bac-group {
-            margin-bottom: 28px;
-        }
-
-        .bac-group-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid rgba(99,102,241,0.3);
-        }
-
-        .bac-group-icon {
-            font-size: 1.5rem;
-        }
-
-        .bac-group-title {
-            font-size: 1rem;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .bac-cards-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .bac-card {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            padding: 14px 16px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: left;
-            width: 100%;
-            font-family: inherit;
-            color: var(--text);
-        }
-
-        .bac-card:hover {
-            background: rgba(99,102,241,0.1);
+        .role-card:hover {
+            background: #f8fafc;
             border-color: var(--primary);
-            transform: translateY(-2px);
+            transform: translateX(4px);
         }
-
-        .bac-card.selected {
-            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));
-            border: 2px solid var(--primary);
-        }
-
-        .bac-card-code {
-            font-size: 1rem;
-            font-weight: 800;
-            margin-bottom: 6px;
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: rgba(99,102,241,0.2);
-        }
-
-        .bac-card-label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #e2e8f0;
-        }
-
-        .bac-card-fields {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            line-height: 1.4;
-        }
+        .role-card:active { transform: scale(0.98); }
 
         .bac-note {
             margin-top: 24px;
             padding: 14px 16px;
             border-radius: 16px;
-            background: rgba(244, 63, 94, 0.08);
-            border: 1px solid rgba(244, 63, 94, 0.2);
-            color: #fecdd3;
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+            color: #92400e;
             font-size: 0.8rem;
             line-height: 1.5;
             text-align: center;
@@ -215,45 +150,39 @@
 
         /* Questions */
         .question-card {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: white;
+            border: 1px solid #e2e8f0;
             padding: 20px;
             border-radius: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
-            backdrop-filter: blur(14px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
         }
-        .question-text { font-size: 1.45rem; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em; }
+        .question-text { font-size: 1.45rem; font-weight: 700; line-height: 1.35; color: #1e293b; }
         
         .options-grid { display: grid; gap: 12px; }
         .option-btn {
             display: flex;
             align-items: center;
             gap: 12px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: white;
+            border: 1px solid #e2e8f0;
             padding: 16px;
             border-radius: 14px;
-            color: white;
+            color: #1e293b;
             text-align: left;
             font-size: 1rem;
             cursor: pointer;
             transition: 0.25s;
-            position: relative;
-            overflow: hidden;
-            animation: fadeUp 0.3s ease;
         }
         .option-btn:hover {
-            background: rgba(99,102,241,0.15);
+            background: #f8fafc;
             border-color: var(--primary);
             transform: translateY(-2px);
         }
-        .option-btn:active { transform: scale(0.99); }
         .option-btn.selected {
             background: linear-gradient(90deg, var(--primary), #8b5cf6);
             border-color: transparent;
-            transform: scale(1.02);
-            box-shadow: 0 18px 35px rgba(99,102,241,0.3);
+            color: white;
         }
         .option-emoji {
             width: 38px;
@@ -262,20 +191,16 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: rgba(255,255,255,0.08);
+            background: #f1f5f9;
             font-size: 1.2rem;
             flex-shrink: 0;
+        }
+        .option-btn.selected .option-emoji {
+            background: rgba(255,255,255,0.2);
         }
         .option-label {
             font-weight: 600;
             line-height: 1.35;
-        }
-        .option-btn.selected .option-emoji {
-            background: rgba(255,255,255,0.18);
-        }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Loader */
@@ -287,26 +212,15 @@
             gap: 20px;
             padding: 40px 20px;
         }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(99, 102, 241, 0.2);
-            border-top: 4px solid var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
 
         /* Error Message */
         #errorMessage {
             display: none;
-            background: rgba(244, 63, 94, 0.1);
-            border: 1px solid var(--accent);
+            background: #fef2f2;
+            border: 1px solid #fecaca;
             padding: 15px;
             border-radius: 12px;
-            color: var(--accent);
+            color: #dc2626;
             font-size: 0.9rem;
             margin-bottom: 15px;
         }
@@ -323,14 +237,14 @@
             width: 100%;
         }
 
-        /* Résultats - Styles de base (seront remplacés par UIRenderer) */
+        /* Résultats */
         .result-box {
-            background: linear-gradient(145deg, var(--primary), #4338ca);
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
             padding: 30px;
             border-radius: 30px;
             text-align: center;
             margin-top: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            color: white;
         }
         
         #recommendationsContainer {
@@ -338,7 +252,7 @@
         }
         
         .restart-btn {
-            background: white;
+            background: #f1f5f9;
             color: var(--primary);
             border: none;
             padding: 18px;
@@ -352,7 +266,7 @@
             transition: 0.2s;
         }
         .restart-btn:hover {
-            background: #f1f5f9;
+            background: #e2e8f0;
         }
 
         #parentAddon {
@@ -362,6 +276,10 @@
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -398,7 +316,7 @@
     <div id="resultScreen" class="screen">
         <div id="loaderSpinner">
             <div class="spinner"></div>
-            <div id="loaderText" style="text-align: center; color: #94a3b8;">Analyse en cours...</div>
+            <div id="loaderText" style="text-align: center; color: #64748b;">Analyse en cours...</div>
         </div>
 
         <div id="errorMessage"></div>
@@ -411,7 +329,7 @@
             <p id="finalDesc" style="font-size: 0.9rem; line-height: 1.5; opacity: 0.9;"></p>
         </div>
 
-        <div id="parentAddon" style="margin-top:20px; padding: 15px; border-radius: 15px; background: rgba(255,255,255,0.05); font-size: 0.85rem; border-left: 4px solid var(--accent); display:none;"></div>
+        <div id="parentAddon" style="margin-top:20px; padding: 15px; border-radius: 15px; background: #f8fafc; font-size: 0.85rem; border-left: 4px solid var(--accent); display:none; color: #1e293b;"></div>
 
         <div id="recommendationsContainer"></div>
 
@@ -435,43 +353,16 @@
 
 <!-- Feature Flags & Debug -->
 <script>
-    // Diagnostic function to help debug auto-start issues
     function debugAutoStart() {
         console.log('%c📋 PORA AUTO-START DIAGNOSTIC', 'font-size: 14px; font-weight: bold; color: #f43f5e;');
-        console.log('\n=== FLUTTER INJECTION DATA ===');
-        console.log('user_type (localStorage):', localStorage.getItem('user_type'));
-        console.log('user_id (localStorage):', localStorage.getItem('user_id'));
-        console.log('jwt_token (localStorage):', localStorage.getItem('jwt_token') ? '✅ Present' : '❌ Missing');
-        console.log('access_token (localStorage):', localStorage.getItem('access_token') ? '✅ Present' : '❌ Missing');
-        console.log('\n=== APPLICATION STATE ===');
-        console.log('App initialized:', window.orientationApp?.initialized);
-        console.log('App state:', window.orientationApp?.getState?.());
-        console.log('Current quiz role:', window.orientationApp?.quiz?.getCurrentRole?.());
-        console.log('\n=== RECOMMENDATIONS ===');
-        if (!localStorage.getItem('user_type')) {
-            console.warn('⚠️ user_type not found - Flutter injection may not have completed');
-        }
-        if (!localStorage.getItem('user_id')) {
-            console.warn('⚠️ user_id not found - Flutter injection may not have completed');
-        }
-        if (!localStorage.getItem('jwt_token') && !localStorage.getItem('access_token')) {
-            console.warn('⚠️ No JWT token found - auth may have failed');
-        }
+        console.log('user_type:', localStorage.getItem('user_type'));
+        console.log('user_id:', localStorage.getItem('user_id'));
+        console.log('jwt_token:', localStorage.getItem('jwt_token') ? '✅ Present' : '❌ Missing');
     }
     
-    // Make app accessible in console for debugging
     window.addEventListener('load', () => {
         console.log('%c🚀 Orientation App Loaded', 'font-size: 16px; font-weight: bold; color: #6366f1;');
         console.log('App instance:', window.orientationApp);
-        console.log('Current state:', window.orientationApp?.getState());
-        console.log('\nAvailable commands:');
-        console.log('  window.orientationApp.getState()');
-        console.log('  window.CONFIG');
-        console.log('  debugAutoStart() - Run diagnosis on auto-start');
-        
-        setTimeout(() => {
-            debugAutoStart();
-        }, 1000);
     });
     
     window.debugAutoStart = debugAutoStart;

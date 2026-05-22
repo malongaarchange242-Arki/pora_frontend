@@ -1,13 +1,14 @@
 /**
- * Quiz Service Module - Version 2.0
+ * Quiz Service Module - Version 3.0
  * Handles quiz logic: loading, format mapping, response validation, scoring
  * 
- * AMÉLIORATIONS V2:
- * - Support bac congolais complet
+ * AMÉLIORATIONS V3:
+ * - Support bac congolais complet (toutes les séries)
  * - Validation améliorée des réponses
  * - Cache des réponses utilisateur
  * - Support questions multi-choice
  * - Meilleure gestion des erreurs
+ * - Compatibilité avec l'échelle 1-5 et 1-4
  */
 
 class QuizService {
@@ -32,22 +33,43 @@ class QuizService {
         this.totalTimeSpent = 0;
         this.quizStartTime = null;
         
-        // Configuration bac congolais
+        // Configuration bac congolais - COMPLÈTE (26 séries)
         this.BAC_CONFIG = {
-            availableCodes: ['C', 'D', 'A', 'A1', 'A2', 'G', 'G1', 'G2', 'E', 'F1', 'H', 'H1'],
+            availableCodes: [
+                'A', 'C', 'D', 'E',
+                'F1', 'F2', 'F3', 'F4',
+                'H1', 'H2', 'H3', 'H4', 'H5',
+                'G1', 'G2', 'G3', 'BG',
+                'R1', 'R2', 'R3', 'R4', 'R5', 'R6',
+                'P2', 'P6', 'P7'
+            ],
             tracks: {
-                'C': { name: 'Mathématiques', group: 'science', boost: 1.15 },
-                'D': { name: 'Sciences expérimentales', group: 'science', boost: 1.10 },
-                'A': { name: 'Lettres', group: 'humanities', boost: 1.10 },
-                'A1': { name: 'Lettres', group: 'humanities', boost: 1.10 },
-                'A2': { name: 'Lettres', group: 'humanities', boost: 1.10 },
-                'G': { name: 'Commerciale', group: 'business', boost: 1.15 },
-                'G1': { name: 'Commerciale', group: 'business', boost: 1.15 },
-                'G2': { name: 'Commerciale', group: 'business', boost: 1.15 },
-                'E': { name: 'Technique', group: 'technical', boost: 1.10 },
-                'F1': { name: 'Technique', group: 'technical', boost: 1.10 },
-                'H': { name: 'Informatique', group: 'informatics', boost: 1.20 },
-                'H1': { name: 'Informatique', group: 'informatics', boost: 1.20 }
+                'A': { name: 'Lettres, langues et philosophie', group: 'humanities', boost: 1.10 },
+                'C': { name: 'Mathématiques et sciences physiques', group: 'science', boost: 1.15 },
+                'D': { name: 'Sciences naturelles et biologie', group: 'science', boost: 1.10 },
+                'E': { name: 'Mathématiques techniques et technologie', group: 'technical', boost: 1.12 },
+                'F1': { name: 'Construction mécanique', group: 'industrial', boost: 1.15 },
+                'F2': { name: 'Électronique', group: 'industrial', boost: 1.15 },
+                'F3': { name: 'Électrotechnique', group: 'industrial', boost: 1.15 },
+                'F4': { name: 'Génie civil et bâtiment', group: 'industrial', boost: 1.12 },
+                'H1': { name: 'Informatique de gestion', group: 'it', boost: 1.20 },
+                'H2': { name: 'Communication administrative', group: 'business', boost: 1.10 },
+                'H3': { name: 'Action commerciale', group: 'business', boost: 1.12 },
+                'H4': { name: 'Maintenance informatique', group: 'it', boost: 1.15 },
+                'H5': { name: 'Techniques administratives', group: 'business', boost: 1.10 },
+                'G1': { name: 'Secrétariat de direction', group: 'business', boost: 1.10 },
+                'G2': { name: 'Comptabilité et gestion financière', group: 'business', boost: 1.15 },
+                'G3': { name: 'Commerce et marketing', group: 'business', boost: 1.12 },
+                'BG': { name: 'Banque et gestion', group: 'business', boost: 1.15 },
+                'R1': { name: 'Production végétale', group: 'agriculture', boost: 1.10 },
+                'R2': { name: 'Production animale', group: 'agriculture', boost: 1.10 },
+                'R3': { name: 'Santé animale', group: 'agriculture', boost: 1.10 },
+                'R4': { name: 'Machiniste agricole', group: 'agriculture', boost: 1.08 },
+                'R5': { name: 'Économie et gestion coopératives', group: 'business', boost: 1.10 },
+                'R6': { name: 'Génie rural', group: 'agriculture', boost: 1.10 },
+                'P2': { name: 'Génie civil', group: 'vocational', boost: 1.12 },
+                'P6': { name: 'Mécanique de production', group: 'vocational', boost: 1.12 },
+                'P7': { name: 'Électrotechnique et équipement de communication', group: 'vocational', boost: 1.12 }
             }
         };
     }
@@ -59,7 +81,6 @@ class QuizService {
         this.authenticatedUser = user;
         this.logger.log('✅ Authenticated user set in quiz service:', user?.id);
         
-        // Load user's bac type if available
         if (user?.user_metadata?.bac_code) {
             this.setBacType(user.user_metadata.bac_code);
         }
@@ -70,9 +91,8 @@ class QuizService {
      */
     async initialize(questions) {
         try {
-            this.logger.log('🎯 Initializing quiz service V2...');
+            this.logger.log('🎯 Initializing quiz service V3...');
             
-            // Dédupliquer les questions par code
             const uniqueQuestions = [];
             const seenCodes = new Set();
             for (const q of questions) {
@@ -85,7 +105,6 @@ class QuizService {
                 }
             }
             
-            // Split by quiz_type
             const studentQuestions = uniqueQuestions.filter(q => q.quiz_type !== 'parent');
             const parentQuestions = uniqueQuestions.filter(q => q.quiz_type === 'parent');
             
@@ -137,7 +156,6 @@ class QuizService {
                 let optionValue;
                 let optionText;
 
-                // Handle string format like "@{label=Text; value=1}"
                 if (typeof opt === 'string' && opt.startsWith('@{') && opt.endsWith('}')) {
                     const content = opt.slice(2, -1);
                     const parts = content.split(';').map(p => p.trim());
@@ -146,17 +164,14 @@ class QuizService {
                     optionText = labelPart ? labelPart.split('=')[1] : opt;
                     optionValue = valuePart ? valuePart.split('=')[1] : idx + 1;
                 }
-                // Handle object format
                 else if (typeof opt === 'object' && opt !== null) {
                     optionText = opt.label || opt.text || `Option ${idx + 1}`;
                     optionValue = opt.value || opt.option_value || idx + 1;
                 }
-                // Handle simple string
                 else if (typeof opt === 'string') {
                     optionText = opt;
                     optionValue = idx + 1;
                 }
-                // Fallback
                 else {
                     optionText = `Option ${idx + 1}`;
                     optionValue = idx + 1;
@@ -186,7 +201,6 @@ class QuizService {
         if (typeof value === 'string') {
             const trimmed = value.trim();
 
-            // Likert/scale questions need numeric values
             if (['likert', 'scale', 'single_choice'].includes(questionType) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
                 return Number(trimmed);
             }
@@ -198,7 +212,7 @@ class QuizService {
     }
 
     // ============================================================
-    // 🎓 BAC CONGOLAIS - GESTION COMPLÈTE
+    // 🎓 BAC CONGOLAIS - GESTION COMPLÈTE (26 séries)
     // ============================================================
 
     normalizeBacType(value) {
@@ -210,28 +224,19 @@ class QuizService {
             .replace(/\s+/g, '')
             .replace(/[^A-Z0-9]/g, '');
         
-        // Direct match
         if (this.BAC_CONFIG.availableCodes.includes(normalized)) {
             return normalized;
         }
         
-        // Handle aliases
         const aliases = {
-            'C/D': 'C',
-            'CD': 'C',
-            'D/C': 'D',
-            'DC': 'D',
-            'E/F': 'E',
-            'EF': 'E',
-            'G/BG': 'G',
-            'GBG': 'G'
+            'C/D': 'C', 'CD': 'C', 'D/C': 'D', 'DC': 'D',
+            'E/F': 'E', 'EF': 'E', 'G/BG': 'G', 'GBG': 'G'
         };
         
         if (aliases[normalized]) {
             return aliases[normalized];
         }
         
-        // Try to extract code from string like "Série C" or "Bac C"
         const match = normalized.match(/[A-Z][0-9]?/);
         if (match && this.BAC_CONFIG.availableCodes.includes(match[0])) {
             return match[0];
@@ -268,7 +273,7 @@ class QuizService {
             this.logger.warn('Unable to persist bac type:', error);
         }
 
-        this.logger.log(`🎓 Bac type set: ${normalized} (${this.getBacInfo().name})`);
+        this.logger.log(`🎓 Bac type set: ${normalized}`);
         return this.bacType;
     }
 
@@ -302,9 +307,6 @@ class QuizService {
     // 🎮 QUIZ LOGIC
     // ============================================================
 
-    /**
-     * Start quiz for a given role
-     */
     startQuiz(role) {
         if (!this.questions[role] || this.questions[role].length === 0) {
             throw new Error(`No questions loaded for role: ${role}`);
@@ -330,9 +332,6 @@ class QuizService {
         };
     }
 
-    /**
-     * Get current question
-     */
     getCurrentQuestion() {
         if (!this.currentRole || !this.questions[this.currentRole]) {
             throw new Error('Quiz not initialized');
@@ -341,7 +340,6 @@ class QuizService {
         const q = this.questions[this.currentRole][this.currentStep];
         if (!q) return null;
 
-        // Record start time for this question
         this.questionTimestamps.set(q.code, Date.now());
 
         return {
@@ -351,15 +349,9 @@ class QuizService {
         };
     }
 
-    /**
-     * Convert option value to numeric score (1-5)
-     */
     convertToNumericScore(value, question) {
         const normalizedValue = this.normalizeOptionValue(value, question.type);
         
-        this.logger.debug(`🔄 Converting "${value}" for type "${question.type}"`);
-
-        // For likert/scale questions
         if (question.type === 'likert' || question.type === 'scale') {
             const numValue = Number(normalizedValue);
             if (Number.isFinite(numValue) && numValue >= 1 && numValue <= 5) {
@@ -367,7 +359,6 @@ class QuizService {
             }
         }
 
-        // For choice questions, map based on position
         const options = question.o || [];
         const optionIndex = options.findIndex(opt => 
             opt.v === normalizedValue || opt.t === normalizedValue
@@ -375,11 +366,9 @@ class QuizService {
 
         if (optionIndex === -1) {
             this.logger.warn(`Option not found: "${value}", using default`);
-            return 3; // Default neutral value
+            return 3;
         }
 
-        // Map to a normalized 1-4 range for fixed-choice questions.
-        // This avoids invalid score values like 5 when the backend expects a 1-4 choice scale.
         const numOptions = options.length;
         let score;
 
@@ -394,16 +383,12 @@ class QuizService {
         return score;
     }
 
-    /**
-     * Record answer and advance to next question
-     */
     answerQuestion(value) {
         const currentQuestion = this.getCurrentQuestion();
         if (!currentQuestion) {
             throw new Error('No current question');
         }
 
-        // Record time spent on this question
         const startTime = this.questionTimestamps.get(currentQuestion.code);
         if (startTime) {
             const timeSpent = Date.now() - startTime;
@@ -411,7 +396,6 @@ class QuizService {
             this.questionTimestamps.delete(currentQuestion.code);
         }
 
-        // Handle multi-choice answers (JSON array)
         let processedValue = value;
         let numericScore;
         
@@ -432,7 +416,6 @@ class QuizService {
             opt.v === normalizedValue || opt.t === normalizedValue
         );
 
-        // Store answer
         this.selectedAnswers[currentQuestion.code] = numericScore;
         this.responseMetadata[currentQuestion.code] = {
             raw_value: normalizedValue,
@@ -445,14 +428,12 @@ class QuizService {
         
         this.logger.log(`📝 Answer: ${currentQuestion.code} = ${value} (score: ${numericScore})`);
 
-        // Cache for potential recovery
         this.responseCache.set(currentQuestion.code, {
             value: processedValue,
             score: numericScore,
             timestamp: Date.now()
         });
 
-        // Update legacy scores
         if (currentQuestion.dimension) {
             const dim = currentQuestion.dimension.toUpperCase();
             if (this.scores[dim] !== undefined) {
@@ -460,12 +441,10 @@ class QuizService {
             }
         }
 
-        // Handle budget question
         if (currentQuestion.isBudgetQuestion) {
             this.parentBudget = this.getBudgetAdviceFromScore(numericScore);
         }
 
-        // Advance
         this.currentStep++;
 
         const isComplete = this.currentStep >= this.questions[this.currentRole].length;
@@ -481,9 +460,6 @@ class QuizService {
         };
     }
 
-    /**
-     * Calculate score for multi-choice questions
-     */
     calculateMultiChoiceScore(choices, question) {
         if (!choices || choices.length === 0) return 3;
         
@@ -496,9 +472,6 @@ class QuizService {
         return Math.round(selectedValues.reduce((a, b) => a + b, 0) / selectedValues.length);
     }
 
-    /**
-     * Get progress percentage
-     */
     getProgress() {
         const total = this.questions[this.currentRole]?.length || 1;
         return Math.round((this.currentStep / total) * 100);
@@ -508,9 +481,6 @@ class QuizService {
         return this.questions[this.currentRole]?.length || 0;
     }
 
-    /**
-     * Reset quiz
-     */
     reset() {
         this.logger.log('🔄 Resetting quiz...');
         this.currentRole = null;
@@ -525,9 +495,6 @@ class QuizService {
         this.clearBacType();
     }
 
-    /**
-     * Validate responses before submission
-     */
     validateResponses() {
         const expectedKeys = [...new Set(this.questions[this.currentRole]?.map(q => q.code) || [])];
         const expectedCount = expectedKeys.length;
@@ -547,7 +514,6 @@ class QuizService {
             };
         }
 
-        // Validate all values are in range [1-5]
         const invalidAnswers = Object.entries(this.selectedAnswers)
             .filter(([code, value]) => {
                 if (typeof value !== 'number' || value < 1 || value > 5) {
@@ -569,16 +535,13 @@ class QuizService {
         return { valid: true };
     }
 
-    /**
-     * Map responses to PROA format
-     */
     mapToProaFormat() {
         const validation = this.validateResponses();
         if (!validation.valid) {
             throw new Error(validation.error);
         }
 
-        this.logger.log('📊 Mapping responses to PROA format V2...');
+        this.logger.log('📊 Mapping responses to PROA format V3...');
 
         const proaResponses = {};
         
@@ -592,7 +555,6 @@ class QuizService {
             responseMetadata[code.toLowerCase()] = metadata;
         }
 
-        // Add bac info for student quiz
         if (this.currentRole === 'student') {
             if (!this.bacType) {
                 throw new Error('Le type de bac est obligatoire pour ce quiz.');
@@ -607,7 +569,6 @@ class QuizService {
             };
         }
 
-        // Add quiz metadata
         const quizDuration = this.quizStartTime ? (Date.now() - this.quizStartTime) : this.totalTimeSpent;
         
         const result = {
@@ -627,7 +588,6 @@ class QuizService {
             }
         };
 
-        // Add bac code if available
         if (this.bacType) {
             result.bac_code = this.bacType;
         }
@@ -636,9 +596,6 @@ class QuizService {
         return result;
     }
 
-    /**
-     * Get user ID from authenticated user or fallback
-     */
     getUserId() {
         if (this.authenticatedUser && this.authenticatedUser.id) {
             return this.authenticatedUser.id;
@@ -653,9 +610,6 @@ class QuizService {
         return userId;
     }
 
-    /**
-     * Generate UUID v4
-     */
     generateUUID() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
             const r = (Math.random() * 16) | 0;
@@ -705,9 +659,6 @@ class QuizService {
         return advice[score] || null;
     }
 
-    /**
-     * Get quiz statistics
-     */
     getStats() {
         return {
             totalQuestions: this.getTotalQuestions(),
@@ -720,7 +671,6 @@ class QuizService {
     }
 }
 
-// Export for use in browser
 if (typeof window !== 'undefined') {
     window.QuizService = QuizService;
 }

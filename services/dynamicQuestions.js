@@ -1,13 +1,14 @@
 /**
- * Dynamic Questions Configuration - Version 2.0
+ * Dynamic Questions Configuration - Version 3.0
  * Configuration des questions dynamiques pour le quiz d'orientation
  * 
- * AMÉLIORATIONS V2:
- * - Support bac congolais (filtrage des questions selon la série)
+ * AMÉLIORATIONS V3:
+ * - Support bac congolais complet (26 séries)
  * - Dimension mapping pour scoring vectoriel
  * - Poids adaptatifs par question
  * - Validation des réponses
  * - Support multi-langues
+ * - Optimisé pour design clair et moderne
  * 
  * Types supported:
  * 1. likert - Échelle d'accord (1-5)
@@ -34,22 +35,51 @@ const DIMENSIONS = {
     ANALYSIS: 'analysis'
 };
 
-// Mapping bac congolais → dimensions prioritaires
+// Mapping bac congolais → dimensions prioritaires (complet pour toutes les séries)
 const BAC_DIMENSION_PRIORITY = {
+    // Sciences
     'C': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.ANALYSIS],
     'D': [DIMENSIONS.TECH, DIMENSIONS.IMPACT, DIMENSIONS.SOCIAL],
-    'A': [DIMENSIONS.SOCIAL, DIMENSIONS.CREATIVITY, DIMENSIONS.INTERNATIONAL],
-    'G': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.FLEXIBILITY],
     'E': [DIMENSIONS.TECH, DIMENSIONS.FLEXIBILITY, DIMENSIONS.EXPERTISE],
-    'H': [DIMENSIONS.TECH, DIMENSIONS.ANALYSIS, DIMENSIONS.EXPERTISE]
+    // Lettres
+    'A': [DIMENSIONS.SOCIAL, DIMENSIONS.CREATIVITY, DIMENSIONS.INTERNATIONAL],
+    // Commerce
+    'G': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.FLEXIBILITY],
+    'G1': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.FLEXIBILITY],
+    'G2': [DIMENSIONS.BUSINESS, DIMENSIONS.EXPERTISE, DIMENSIONS.ANALYSIS],
+    'G3': [DIMENSIONS.BUSINESS, DIMENSIONS.CREATIVITY, DIMENSIONS.SOCIAL],
+    'BG': [DIMENSIONS.BUSINESS, DIMENSIONS.EXPERTISE, DIMENSIONS.INTERNATIONAL],
+    // Informatique
+    'H': [DIMENSIONS.TECH, DIMENSIONS.ANALYSIS, DIMENSIONS.EXPERTISE],
+    'H1': [DIMENSIONS.TECH, DIMENSIONS.ANALYSIS, DIMENSIONS.BUSINESS],
+    'H2': [DIMENSIONS.SOCIAL, DIMENSIONS.BUSINESS, DIMENSIONS.FLEXIBILITY],
+    'H3': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.CREATIVITY],
+    'H4': [DIMENSIONS.TECH, DIMENSIONS.FLEXIBILITY, DIMENSIONS.EXPERTISE],
+    'H5': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.EXPERTISE],
+    // Industriel
+    'F1': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.FLEXIBILITY],
+    'F2': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.ANALYSIS],
+    'F3': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.IMPACT],
+    'F4': [DIMENSIONS.TECH, DIMENSIONS.CREATIVITY, DIMENSIONS.IMPACT],
+    // Agriculture
+    'R1': [DIMENSIONS.IMPACT, DIMENSIONS.EXPERTISE, DIMENSIONS.FLEXIBILITY],
+    'R2': [DIMENSIONS.IMPACT, DIMENSIONS.EXPERTISE, DIMENSIONS.SOCIAL],
+    'R3': [DIMENSIONS.IMPACT, DIMENSIONS.EXPERTISE, DIMENSIONS.SOCIAL],
+    'R4': [DIMENSIONS.TECH, DIMENSIONS.FLEXIBILITY, DIMENSIONS.EXPERTISE],
+    'R5': [DIMENSIONS.BUSINESS, DIMENSIONS.SOCIAL, DIMENSIONS.EXPERTISE],
+    'R6': [DIMENSIONS.TECH, DIMENSIONS.IMPACT, DIMENSIONS.EXPERTISE],
+    // Professionnel
+    'P2': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.IMPACT],
+    'P6': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.FLEXIBILITY],
+    'P7': [DIMENSIONS.TECH, DIMENSIONS.EXPERTISE, DIMENSIONS.ANALYSIS]
 };
 
 // ============================================================
-// 🔥 CONFIGURATION DES QUESTIONS DYNAMIQUES V2
+// 🔥 CONFIGURATION DES QUESTIONS DYNAMIQUES V3
 // ============================================================
 
 const DYNAMIC_QUESTIONS = {
-    // 🔥 TYPE 1: LIKERT (Échelle traditionnelle 1-5)
+    // 🔥 TYPE 1: LIKERT (Échelle d'accord 1-5)
     likert: [
         {
             code: "q1_tech_passion",
@@ -57,7 +87,7 @@ const DYNAMIC_QUESTIONS = {
             q: "Je suis fasciné par les nouvelles technologies et l'innovation",
             dimension: DIMENSIONS.TECH,
             weight: 1.2,
-            bac_compatible: ['C', 'D', 'E', 'H'], // Compatible avec ces séries bac
+            bac_compatible: ['C', 'D', 'E', 'H', 'H1', 'H4', 'F1', 'F2', 'F3'],
             o: [
                 { t: "Pas du tout d'accord", v: 1 },
                 { t: "Plutôt pas d'accord", v: 2 },
@@ -72,7 +102,7 @@ const DYNAMIC_QUESTIONS = {
             q: "J'aime résoudre des problèmes complexes et logiques",
             dimension: DIMENSIONS.EXPERTISE,
             weight: 1.1,
-            bac_compatible: ['C', 'D', 'E', 'H'],
+            bac_compatible: ['C', 'D', 'E', 'H', 'H1', 'F2', 'F3', 'G2'],
             o: [
                 { t: "Pas du tout", v: 1 },
                 { t: "Un peu", v: 2 },
@@ -87,7 +117,7 @@ const DYNAMIC_QUESTIONS = {
             q: "Je préfère travailler en équipe plutôt qu'en solo",
             dimension: DIMENSIONS.SOCIAL,
             weight: 1.0,
-            bac_compatible: ['A', 'G'],
+            bac_compatible: ['A', 'G', 'G1', 'H2', 'H3', 'R2', 'R3'],
             o: [
                 { t: "Toujours solo", v: 1 },
                 { t: "Plutôt solo", v: 2 },
@@ -102,7 +132,7 @@ const DYNAMIC_QUESTIONS = {
             q: "Je me sens plus créatif que technique",
             dimension: DIMENSIONS.CREATIVITY,
             weight: 1.0,
-            bac_compatible: ['A', 'G'],
+            bac_compatible: ['A', 'G3', 'H3', 'F4'],
             o: [
                 { t: "Très technique", v: 1 },
                 { t: "Plutôt technique", v: 2 },
@@ -121,7 +151,7 @@ const DYNAMIC_QUESTIONS = {
             q: "Qu'est-ce qui t'attire le plus dans une carrière ?",
             dimension: DIMENSIONS.BUSINESS,
             weight: 1.3,
-            bac_compatible: ['C', 'D', 'G', 'H'],
+            bac_compatible: null,
             o: [
                 { t: "💻 Créer des solutions innovantes", v: "innovation", dimension_impact: DIMENSIONS.TECH },
                 { t: "💰 Gérer une entreprise et générer des profits", v: "business", dimension_impact: DIMENSIONS.BUSINESS },
@@ -136,7 +166,7 @@ const DYNAMIC_QUESTIONS = {
             q: "Ton environnement de travail idéal ?",
             dimension: DIMENSIONS.FLEXIBILITY,
             weight: 1.0,
-            bac_compatible: null, // Tous les bacs
+            bac_compatible: null,
             o: [
                 { t: "🏢 Grande entreprise structurée", v: "corporate", dimension_impact: DIMENSIONS.BUSINESS },
                 { t: "🚀 Startup dynamique", v: "startup", dimension_impact: DIMENSIONS.CREATIVITY },
@@ -171,11 +201,11 @@ const DYNAMIC_QUESTIONS = {
         {
             code: "q8_domains",
             type: "multi_choice",
-            q: "Quels domaines technologiques t'intéressent ?",
+            q: "Quels domaines t'intéressent ?",
             dimension: DIMENSIONS.TECH,
             weight: 1.1,
             max_selections: 4,
-            bac_compatible: ['C', 'D', 'E', 'H'],
+            bac_compatible: ['C', 'D', 'E', 'H', 'H1', 'H4'],
             o: [
                 { t: "🤖 Intelligence Artificielle & ML", v: "ai", dimension_impact: DIMENSIONS.TECH },
                 { t: "🌐 Développement Web & Mobile", v: "web", dimension_impact: DIMENSIONS.TECH },
@@ -232,7 +262,7 @@ const DYNAMIC_QUESTIONS = {
             min: 0,
             max: 10,
             labels: { 0: "Débutant", 5: "Intermédiaire", 10: "Expert" },
-            bac_compatible: ['C', 'D', 'H']
+            bac_compatible: ['C', 'D', 'H', 'H1', 'F2']
         },
         {
             code: "q12_scale_creativity",
@@ -247,7 +277,7 @@ const DYNAMIC_QUESTIONS = {
         }
     ],
 
-    // 🔥 TYPE 6: RANKING (Classement - NOUVEAU)
+    // 🔥 TYPE 6: RANKING (Classement)
     ranking: [
         {
             code: "q13_ranking_priorities",
@@ -275,7 +305,7 @@ const DYNAMIC_QUESTIONS = {
 
 /**
  * Filtre les questions selon la série bac de l'utilisateur
- * @param {string} bacCode - Code bac (C, D, A, G, E, H)
+ * @param {string} bacCode - Code bac (C, D, A, G, E, H, etc.)
  * @returns {Array} Questions compatibles
  */
 function filterQuestionsByBac(bacCode) {
@@ -329,7 +359,11 @@ function getAllQuestions() {
 function createDynamicQuizMix(targetQuestions = 10, bacCode = null) {
     let availableQuestions = bacCode ? filterQuestionsByBac(bacCode) : getAllQuestions();
     
-    // Distribution équilibrée par type
+    if (availableQuestions.length === 0) {
+        console.warn('⚠️ No questions available, using fallback');
+        availableQuestions = getAllQuestions();
+    }
+    
     const typeDistribution = {
         likert: 2,
         single_choice: 2,
@@ -346,7 +380,6 @@ function createDynamicQuizMix(targetQuestions = 10, bacCode = null) {
         const typeQuestions = availableQuestions.filter(q => q.type === type);
         const needed = typeDistribution[type];
         
-        // Mélanger et prendre les needed
         const shuffled = [...typeQuestions];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -356,7 +389,6 @@ function createDynamicQuizMix(targetQuestions = 10, bacCode = null) {
         selected.push(...shuffled.slice(0, needed));
     }
     
-    // Si pas assez, compléter avec des questions aléatoires
     const remainingNeeded = targetQuestions - selected.length;
     if (remainingNeeded > 0) {
         const usedCodes = new Set(selected.map(q => q.code));
@@ -379,7 +411,7 @@ function createDynamicQuizMix(targetQuestions = 10, bacCode = null) {
  */
 function createPersonalizedQuizByBac(bacCode, targetQuestions = 8) {
     if (!bacCode || !BAC_DIMENSION_PRIORITY[bacCode]) {
-        return createDynamicQuizMix(targetQuestions);
+        return createDynamicQuizMix(targetQuestions, bacCode);
     }
     
     const priorityDimensions = BAC_DIMENSION_PRIORITY[bacCode];
@@ -390,12 +422,24 @@ function createPersonalizedQuizByBac(bacCode, targetQuestions = 8) {
         return createDynamicQuizMix(targetQuestions, bacCode);
     }
     
-    // Shuffle and return the selected questions
     const shuffled = [...availableQuestions].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, targetQuestions);
 }
 
-console.log('✅ Dynamic Questions module loaded. Available:');
-console.log('- DYNAMIC_QUESTIONS_EXAMPLES: All question types');
-console.log('- createDynamicQuizMix(): Balanced mix');
-console.log('- createBalancedDynamicQuiz(n): Get n questions');
+// Export pour utilisation dans le navigateur
+if (typeof window !== 'undefined') {
+    window.DYNAMIC_QUESTIONS = DYNAMIC_QUESTIONS;
+    window.DIMENSIONS = DIMENSIONS;
+    window.BAC_DIMENSION_PRIORITY = BAC_DIMENSION_PRIORITY;
+    window.filterQuestionsByBac = filterQuestionsByBac;
+    window.getAllQuestions = getAllQuestions;
+    window.createDynamicQuizMix = createDynamicQuizMix;
+    window.createPersonalizedQuizByBac = createPersonalizedQuizByBac;
+}
+
+console.log('✅ Dynamic Questions V3 module loaded. Features:');
+console.log('   - Support bac congolais (26 séries)');
+console.log('   - 6 types de questions (likert, single_choice, multi_choice, scenario, scale, ranking)');
+console.log('   - Dimension mapping pour scoring vectoriel');
+console.log('   - Filtrage par bac');
+console.log('   - Quiz personnalisé');
