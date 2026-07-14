@@ -16,8 +16,8 @@
 class APIService {
     constructor(config = {}) {
         // Configuration
-        this.PROA_URL = config.PROA_URL || 'https://universearch-proa-service.onrender.com';
-        this.PORA_URL = config.PORA_URL || 'https://universearch-pora-service.onrender.com';
+        this.PROA_URL = config.PROA_URL || 'https://universearch.com/proa';
+        this.PORA_URL = config.PORA_URL || 'https://universearch.com/pora';
         this.TIMEOUT_MS = config.TIMEOUT_MS || 10000;
         this.RETRY_ATTEMPTS = config.RETRY_ATTEMPTS || 3;
         this.RETRY_DELAY_MS = config.RETRY_DELAY_MS || 1000;
