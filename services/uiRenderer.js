@@ -715,7 +715,7 @@ class UIRenderer {
         button.setAttribute('data-action', 'bac-back');
         button.setAttribute('aria-label', 'Retour');
         button.innerHTML = '<i class="fas fa-arrow-left"></i><span>Retour</span>';
-        button.style.display = 'inline-flex';
+        button.style.display = 'flex';
         button.style.alignItems = 'center';
         button.style.gap = '8px';
         button.style.marginBottom = '16px';
@@ -728,8 +728,48 @@ class UIRenderer {
         button.style.fontWeight = '600';
         button.style.fontSize = '0.95rem';
         button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+        button.style.transition = 'all 0.2s ease';
+        
+        button.addEventListener('hover', function() {
+            this.style.background = '#f8fafc';
+            this.style.borderColor = '#cbd5e1';
+        });
 
         screen.insertBefore(button, screen.firstChild);
+    }
+
+    ensureQuizBackButton() {
+        const screen = this.elements.quizScreen;
+        if (!screen || document.getElementById('quizBackButton')) return;
+
+        const button = document.createElement('button');
+        button.id = 'quizBackButton';
+        button.type = 'button';
+        button.className = 'quiz-back-btn';
+        button.setAttribute('data-action', 'quiz-back');
+        button.setAttribute('aria-label', 'Retour');
+        button.innerHTML = '<i class="fas fa-arrow-left"></i>';
+        button.style.display = 'flex';
+        button.style.alignItems = 'center';
+        button.style.justifyContent = 'center';
+        button.style.position = 'absolute';
+        button.style.top = '20px';
+        button.style.left = '20px';
+        button.style.width = '44px';
+        button.style.height = '44px';
+        button.style.padding = '0';
+        button.style.border = '1px solid #e2e8f0';
+        button.style.borderRadius = '12px';
+        button.style.background = '#ffffff';
+        button.style.color = '#334155';
+        button.style.cursor = 'pointer';
+        button.style.fontSize = '1.1rem';
+        button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+        button.style.transition = 'all 0.2s ease';
+        button.style.zIndex = '100';
+
+        screen.style.position = 'relative';
+        screen.appendChild(button);
     }
 
     getBacLabel(code) {
@@ -798,6 +838,7 @@ class UIRenderer {
         this.logger.log(`Showing quiz screen (${role})`);
         this.hideAllScreens();
         this.fadeIn(this.elements.quizScreen);
+        this.ensureQuizBackButton();
         this.elements.gameHeader?.classList.add('active');
 
         if (this.elements.levelName) {

@@ -406,6 +406,12 @@ class OrientationApp {
                 this.goBackFromBacSelection();
                 return;
             }
+
+            const quizBackButton = e.target.closest('[data-action="quiz-back"]');
+            if (quizBackButton) {
+                this.goBackFromQuiz();
+                return;
+            }
         });
 
         // Network status listeners
@@ -430,6 +436,17 @@ class OrientationApp {
 
     goBackFromBacSelection() {
         this.logger.info('↩️ Returning from bac selection');
+        this.pendingRole = null;
+        if (this.ui && typeof this.ui.showWelcome === 'function') {
+            this.ui.showWelcome();
+        }
+    }
+
+    goBackFromQuiz() {
+        this.logger.info('↩️ Returning from quiz');
+        if (this.quiz) {
+            this.quiz.resetQuiz();
+        }
         this.pendingRole = null;
         if (this.ui && typeof this.ui.showWelcome === 'function') {
             this.ui.showWelcome();
