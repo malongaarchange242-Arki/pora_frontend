@@ -733,7 +733,6 @@ class UIRenderer {
     showBacSelection(availableCodes = null) {
         this.logger.log('Showing bac selection screen with full list');
         this.hideAllScreens();
-        this.ensureBacBackButton();
         
         const bacGroups = [
             {
@@ -854,111 +853,6 @@ class UIRenderer {
         this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat parmi les 26 séries disponibles');
     }
 
-    ensureBacBackButton() {
-        const screen = this.elements.bacScreen;
-        if (!screen || document.getElementById('bacBackButton')) return;
-
-        const button = document.createElement('button');
-        button.id = 'bacBackButton';
-        button.type = 'button';
-        button.className = 'bac-back-btn';
-        button.setAttribute('data-action', 'bac-back');
-        button.setAttribute('aria-label', 'Retour');
-        button.innerHTML = '<i class="fas fa-arrow-left" style="margin-right: 6px;"></i>Retour';
-        button.style.display = 'flex';
-        button.style.alignItems = 'center';
-        button.style.justifyContent = 'center';
-        button.style.gap = '6px';
-        button.style.padding = '12px 18px';
-        button.style.border = '1px solid #e2e8f0';
-        button.style.borderRadius = '12px';
-        button.style.background = '#ffffff';
-        button.style.color = '#334155';
-        button.style.cursor = 'pointer';
-        button.style.fontWeight = '600';
-        button.style.fontSize = '0.95rem';
-        button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
-        button.style.transition = 'all 0.2s ease';
-        button.style.position = 'fixed';
-        button.style.bottom = '20px';
-        button.style.left = '20px';
-        button.style.zIndex = '1000';
-        
-        button.addEventListener('mouseenter', function() {
-            this.style.background = '#f8fafc';
-            this.style.borderColor = '#cbd5e1';
-            this.style.transform = 'translateX(-2px)';
-        });
-        
-        button.addEventListener('mouseleave', function() {
-            this.style.background = '#ffffff';
-            this.style.borderColor = '#e2e8f0';
-            this.style.transform = 'translateX(0)';
-        });
-
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.logger.info('↩️ Bac back button clicked');
-            // Dispatch custom event for app.js to handle
-            document.dispatchEvent(new CustomEvent('bac-back-clicked'));
-        });
-
-        document.body.appendChild(button);
-    }
-
-    ensureQuizBackButton() {
-        const screen = this.elements.quizScreen;
-        if (!screen || document.getElementById('quizBackButton')) return;
-
-        const button = document.createElement('button');
-        button.id = 'quizBackButton';
-        button.type = 'button';
-        button.className = 'quiz-back-btn';
-        button.setAttribute('data-action', 'quiz-back');
-        button.setAttribute('aria-label', 'Retour');
-        button.innerHTML = '<i class="fas fa-arrow-left" style="margin-right: 6px;"></i>Retour';
-        button.style.display = 'flex';
-        button.style.alignItems = 'center';
-        button.style.justifyContent = 'center';
-        button.style.gap = '6px';
-        button.style.padding = '12px 18px';
-        button.style.border = '1px solid #e2e8f0';
-        button.style.borderRadius = '12px';
-        button.style.background = '#ffffff';
-        button.style.color = '#334155';
-        button.style.cursor = 'pointer';
-        button.style.fontWeight = '600';
-        button.style.fontSize = '0.95rem';
-        button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
-        button.style.transition = 'all 0.2s ease';
-        button.style.position = 'fixed';
-        button.style.bottom = '20px';
-        button.style.left = '20px';
-        button.style.zIndex = '1000';
-        
-        button.addEventListener('mouseenter', function() {
-            this.style.background = '#f8fafc';
-            this.style.borderColor = '#cbd5e1';
-            this.style.transform = 'translateX(-2px)';
-        });
-        
-        button.addEventListener('mouseleave', function() {
-            this.style.background = '#ffffff';
-            this.style.borderColor = '#e2e8f0';
-            this.style.transform = 'translateX(0)';
-        });
-
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.logger.info('↩️ Quiz back button clicked');
-            // Dispatch custom event for app.js to handle
-            document.dispatchEvent(new CustomEvent('quiz-back-clicked'));
-        });
-
-        document.body.appendChild(button);
-    }
 
     getBacLabel(code) {
         const labels = {
@@ -1026,7 +920,6 @@ class UIRenderer {
         this.logger.log(`Showing quiz screen (${role})`);
         this.hideAllScreens();
         this.fadeIn(this.elements.quizScreen);
-        this.ensureQuizBackButton();
         this.ensureQuizNavigationControls();
         this.hideQuizCompletionAction();
         this.elements.gameHeader?.classList.add('active');
@@ -1154,12 +1047,6 @@ class UIRenderer {
         });
         
         // Remove dynamic controls when hiding screens
-        const bacBtn = document.getElementById('bacBackButton');
-        if (bacBtn) bacBtn.remove();
-        
-        const quizBtn = document.getElementById('quizBackButton');
-        if (quizBtn) quizBtn.remove();
-
         const quizNav = document.getElementById('quizNavigationControls');
         if (quizNav) quizNav.remove();
 
