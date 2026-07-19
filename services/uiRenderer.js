@@ -583,6 +583,7 @@ class UIRenderer {
     showBacSelection(availableCodes = null) {
         this.logger.log('Showing bac selection screen with full list');
         this.hideAllScreens();
+        this.ensureBacBackButton();
         
         const bacGroups = [
             {
@@ -701,6 +702,34 @@ class UIRenderer {
             this.elements.gameHeader.style.opacity = '1';
         }
         this.announceToScreenReader('Veuillez sélectionner votre série de baccalauréat parmi les 26 séries disponibles');
+    }
+
+    ensureBacBackButton() {
+        const screen = this.elements.bacScreen;
+        if (!screen || document.getElementById('bacBackButton')) return;
+
+        const button = document.createElement('button');
+        button.id = 'bacBackButton';
+        button.type = 'button';
+        button.className = 'bac-back-btn';
+        button.setAttribute('data-action', 'bac-back');
+        button.setAttribute('aria-label', 'Retour');
+        button.innerHTML = '<i class="fas fa-arrow-left"></i><span>Retour</span>';
+        button.style.display = 'inline-flex';
+        button.style.alignItems = 'center';
+        button.style.gap = '8px';
+        button.style.marginBottom = '16px';
+        button.style.padding = '10px 14px';
+        button.style.border = '1px solid #e2e8f0';
+        button.style.borderRadius = '999px';
+        button.style.background = '#ffffff';
+        button.style.color = '#334155';
+        button.style.cursor = 'pointer';
+        button.style.fontWeight = '600';
+        button.style.fontSize = '0.95rem';
+        button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+
+        screen.insertBefore(button, screen.firstChild);
     }
 
     getBacLabel(code) {

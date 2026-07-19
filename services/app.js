@@ -398,6 +398,13 @@ class OrientationApp {
             const restartButton = e.target.closest('[data-action="restart"]');
             if (restartButton) {
                 this.restart();
+                return;
+            }
+
+            const bacBackButton = e.target.closest('[data-action="bac-back"]');
+            if (bacBackButton) {
+                this.goBackFromBacSelection();
+                return;
             }
         });
 
@@ -419,6 +426,14 @@ class OrientationApp {
         });
 
         this.logger.info('✅ Event listeners setup');
+    }
+
+    goBackFromBacSelection() {
+        this.logger.info('↩️ Returning from bac selection');
+        this.pendingRole = null;
+        if (this.ui && typeof this.ui.showWelcome === 'function') {
+            this.ui.showWelcome();
+        }
     }
 
     /**
