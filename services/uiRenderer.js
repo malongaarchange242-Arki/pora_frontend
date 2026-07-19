@@ -586,16 +586,16 @@ class UIRenderer {
         
         const bacGroups = [
             {
-                name: '📖 Lettres & Sciences Humaines',
-                icon: '📖',
+                name: 'Lettres & Sciences Humaines',
+                icon: 'fa-book-open-reader',
                 color: '#8b5cf6',
                 series: [
                     { code: 'A', label: 'Lettres, langues et philosophie', fields: 'Droit, Communication, Journalisme, Enseignement' }
                 ]
             },
             {
-                name: '🔬 Sciences',
-                icon: '🔬',
+                name: 'Sciences',
+                icon: 'fa-flask',
                 color: '#3b82f6',
                 series: [
                     { code: 'C', label: 'Mathématiques et sciences physiques', fields: 'Informatique, Ingénierie, Mathématiques, Data Science' },
@@ -604,8 +604,8 @@ class UIRenderer {
                 ]
             },
             {
-                name: '🏭 Filières Industrielles',
-                icon: '🏭',
+                name: 'Filières Industrielles',
+                icon: 'fa-industry',
                 color: '#ef4444',
                 series: [
                     { code: 'F1', label: 'Construction mécanique', fields: 'Mécanique, Maintenance industrielle, Production' },
@@ -615,8 +615,8 @@ class UIRenderer {
                 ]
             },
             {
-                name: '💻 Informatique & Tertiaire',
-                icon: '💻',
+                name: 'Informatique & Tertiaire',
+                icon: 'fa-computer',
                 color: '#10b981',
                 series: [
                     { code: 'H1', label: 'Informatique de gestion', fields: 'Développement, Data, Systèmes d\'information' },
@@ -627,8 +627,8 @@ class UIRenderer {
                 ]
             },
             {
-                name: '💰 Gestion & Commerce',
-                icon: '💰',
+                name: 'Gestion & Commerce',
+                icon: 'fa-money-bill-wave',
                 color: '#f59e0b',
                 series: [
                     { code: 'G1', label: 'Secrétariat de direction', fields: 'Gestion, RH, Assistant de direction' },
@@ -638,8 +638,8 @@ class UIRenderer {
                 ]
             },
             {
-                name: '🌾 Agriculture',
-                icon: '🌾',
+                name: 'Agriculture',
+                icon: 'fa-seedling',
                 color: '#84cc16',
                 series: [
                     { code: 'R1', label: 'Production végétale', fields: 'Agronomie, Agriculture, Cultures' },
@@ -651,8 +651,8 @@ class UIRenderer {
                 ]
             },
             {
-                name: '🔧 Filières Professionnelles',
-                icon: '🔧',
+                name: 'Filières Professionnelles',
+                icon: 'fa-hammer',
                 color: '#6b7280',
                 series: [
                     { code: 'P2', label: 'Génie civil', fields: 'BTP, Construction, Travaux publics' },
@@ -673,7 +673,7 @@ class UIRenderer {
                 
                 groupDiv.innerHTML = `
                     <div class="bac-group-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid ${group.color}20;">
-                        <span style="font-size: 1.5rem;">${group.icon}</span>
+                        <i class="fas ${group.icon}" style="font-size: 1.5rem; color: ${group.color};"></i>
                         <h3 style="color: ${group.color}; margin: 0; font-size: 1.1rem;">${group.name}</h3>
                     </div>
                     <div class="bac-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
