@@ -17,7 +17,11 @@ class UIRenderer {
         this.logger = config.logger || console;
         this.onQuestionAnswered = config.onQuestionAnswered || (() => {});
         this.onBacSelected = config.onBacSelected || (() => {});
+        this.onNavigateQuestion = config.onNavigateQuestion || (() => {});
+        this.onAnalyzeProfile = config.onAnalyzeProfile || (() => {});
+        this.onShowRecommendations = config.onShowRecommendations || (() => {});
         this.multiChoiceSelected = [];
+        this.currentResultData = null;
         this.elements = this.findElements();
         this.enhanceLayout();
         this.setupDelegatedEvents();
@@ -65,6 +69,34 @@ class UIRenderer {
             if (bacButton && this.elements.bacScreen?.classList.contains('active')) {
                 const bacValue = bacButton.getAttribute('data-bac-value');
                 this.handleBacSelection(bacValue);
+            }
+
+            const prevButton = e.target.closest('[data-action="quiz-prev"]');
+            if (prevButton) {
+                e.preventDefault();
+                this.onNavigateQuestion('prev');
+                return;
+            }
+
+            const nextButton = e.target.closest('[data-action="quiz-next"]');
+            if (nextButton) {
+                e.preventDefault();
+                this.onNavigateQuestion('next');
+                return;
+            }
+
+            const analyzeButton = e.target.closest('[data-action="analyze-profile"]');
+            if (analyzeButton) {
+                e.preventDefault();
+                this.onAnalyzeProfile();
+                return;
+            }
+
+            const recommendationsButton = e.target.closest('[data-action="show-recommendations"]');
+            if (recommendationsButton) {
+                e.preventDefault();
+                this.onShowRecommendations();
+                return;
             }
         });
     }
@@ -129,21 +161,24 @@ class UIRenderer {
         this.ensureConfidenceBadge();
         this.ensureBacInfoContainer();
         this.ensureResultStyles();
+        this.elements = this.findElements();
     }
 
     ensureQuestionMeta() {
         const gameHeader = document.getElementById('gameHeader');
-        if (!gameHeader || document.getElementById('currentStep')) return;
+        if (!gameHeader) return;
 
-        const meta = document.createElement('div');
-        meta.className = 'question-meta';
-        meta.style.fontSize = '0.75rem';
-        meta.style.color = '#94a3b8';
-        meta.style.marginBottom = '6px';
-        meta.innerHTML = 'Question <span id="currentStep">1</span> / <span id="totalSteps">30</span>';
+        if (!document.getElementById('currentStep')) {
+            const meta = document.createElement('div');
+            meta.className = 'question-meta';
+            meta.style.fontSize = '0.75rem';
+            meta.style.color = '#94a3b8';
+            meta.style.marginBottom = '6px';
+            meta.innerHTML = 'Question <span id="currentStep">1</span> / <span id="totalSteps">30</span>';
 
-        const progressTrack = gameHeader.querySelector('.progress-track');
-        gameHeader.insertBefore(meta, progressTrack || null);
+            const progressTrack = gameHeader.querySelector('.progress-track');
+            gameHeader.insertBefore(meta, progressTrack || null);
+        }
     }
 
     ensureQuestionCard() {
@@ -261,6 +296,121 @@ class UIRenderer {
                     font-weight: 800;
                     color: #1e293b;
                     margin-bottom: 12px;
+                }
+
+                .result-summary-v2 {
+                    font-size: 0.95rem;
+                    color: #64748b;
+                    line-height: 1.6;
+                    margin-bottom: 8px;
+                }
+
+                .step-indicator-v2 {
+                    display: flex;
+                    justify-content: center;
+                    gap: 8px;
+                    margin-bottom: 24px;
+                    flex-wrap: wrap;
+                }
+
+                .step-pill {
+                    padding: 6px 10px;
+                    border-radius: 999px;
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    color: #64748b;
+                    background: #f1f5f9;
+                }
+
+                .step-pill.active {
+                    background: #ede9fe;
+                    color: #6d28d9;
+                }
+
+                .dimensions-grid-v2 {
+                    display: grid;
+                    gap: 12px;
+                }
+
+                .dimension-card-v2 {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 18px;
+                    padding: 12px 14px;
+                }
+
+                .dimension-top-v2 {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    font-size: 0.9rem;
+                    margin-bottom: 8px;
+                    color: #0f172a;
+                }
+
+                .dimension-bar-v2 {
+                    height: 8px;
+                    background: #e2e8f0;
+                    border-radius: 999px;
+                    overflow: hidden;
+                    margin-bottom: 6px;
+                }
+
+                .dimension-fill-v2 {
+                    height: 100%;
+                    border-radius: 999px;
+                    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+                }
+
+                .dimension-card-v2 small {
+                    color: #64748b;
+                }
+
+                .insight-grid-v2 {
+                    display: grid;
+                    gap: 12px;
+                }
+
+                .insight-card-v2 {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 18px;
+                    padding: 14px 16px;
+                }
+
+                .insight-card-v2 h4 {
+                    font-size: 0.95rem;
+                    margin: 0 0 8px;
+                    color: #1e293b;
+                }
+
+                .insight-card-v2 ul {
+                    margin: 0;
+                    padding-left: 18px;
+                    color: #475569;
+                    line-height: 1.6;
+                }
+
+                .tag-list-v2 {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+
+                .learning-style-v2 {
+                    background: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 16px;
+                    padding: 12px 14px;
+                    color: #1d4ed8;
+                    font-weight: 600;
+                }
+
+                .recommendation-meta-v2 {
+                    display: block;
+                    margin-top: 4px;
+                    color: #64748b;
+                    font-size: 0.8rem;
                 }
 
                 .result-tags-v2 {
@@ -877,6 +1027,8 @@ class UIRenderer {
         this.hideAllScreens();
         this.fadeIn(this.elements.quizScreen);
         this.ensureQuizBackButton();
+        this.ensureQuizNavigationControls();
+        this.hideQuizCompletionAction();
         this.elements.gameHeader?.classList.add('active');
 
         if (this.elements.levelName) {
@@ -899,6 +1051,100 @@ class UIRenderer {
         this.announceToScreenReader('Calcul du profil terminé. Voici vos résultats.');
     }
 
+    ensureQuizNavigationControls() {
+        const screen = this.elements.quizScreen;
+        if (!screen) return;
+
+        let wrapper = document.getElementById('quizNavigationControls');
+        if (!wrapper) {
+            wrapper = document.createElement('div');
+            wrapper.id = 'quizNavigationControls';
+            wrapper.style.display = 'flex';
+            wrapper.style.gap = '12px';
+            wrapper.style.marginTop = '20px';
+            screen.appendChild(wrapper);
+        }
+
+        if (!document.querySelector('[data-action="quiz-prev"]')) {
+            const prevBtn = document.createElement('button');
+            prevBtn.type = 'button';
+            prevBtn.setAttribute('data-action', 'quiz-prev');
+            prevBtn.textContent = '← Précédent';
+            prevBtn.style.flex = '1';
+            prevBtn.style.padding = '12px 16px';
+            prevBtn.style.borderRadius = '14px';
+            prevBtn.style.border = '1px solid #e2e8f0';
+            prevBtn.style.background = '#f8fafc';
+            prevBtn.style.color = '#334155';
+            prevBtn.style.fontWeight = '700';
+            prevBtn.style.cursor = 'pointer';
+            wrapper.appendChild(prevBtn);
+        }
+
+        if (!document.querySelector('[data-action="quiz-next"]')) {
+            const nextBtn = document.createElement('button');
+            nextBtn.type = 'button';
+            nextBtn.setAttribute('data-action', 'quiz-next');
+            nextBtn.textContent = 'Suivant →';
+            nextBtn.style.flex = '1';
+            nextBtn.style.padding = '12px 16px';
+            nextBtn.style.borderRadius = '14px';
+            nextBtn.style.border = 'none';
+            nextBtn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+            nextBtn.style.color = 'white';
+            nextBtn.style.fontWeight = '700';
+            nextBtn.style.cursor = 'pointer';
+            wrapper.appendChild(nextBtn);
+        }
+    }
+
+    updateQuizNavigationState(question) {
+        const prevBtn = document.querySelector('[data-action="quiz-prev"]');
+        const nextBtn = document.querySelector('[data-action="quiz-next"]');
+        if (!question) return;
+
+        if (prevBtn) {
+            prevBtn.disabled = question.step <= 1;
+            prevBtn.style.opacity = question.step <= 1 ? '0.6' : '1';
+        }
+        if (nextBtn) {
+            nextBtn.textContent = question.step >= (question.total || 1) ? 'Terminer' : 'Suivant →';
+        }
+    }
+
+    showQuizCompletionAction() {
+        const screen = this.elements.quizScreen;
+        if (!screen) return;
+
+        let container = document.getElementById('quizCompletionAction');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'quizCompletionAction';
+            container.style.marginTop = '16px';
+            screen.appendChild(container);
+        }
+
+        container.innerHTML = '';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.setAttribute('data-action', 'analyze-profile');
+        button.textContent = 'Analyser mon profil';
+        button.style.width = '100%';
+        button.style.padding = '14px 18px';
+        button.style.border = 'none';
+        button.style.borderRadius = '16px';
+        button.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        button.style.color = 'white';
+        button.style.fontWeight = '800';
+        button.style.cursor = 'pointer';
+        container.appendChild(button);
+    }
+
+    hideQuizCompletionAction() {
+        const container = document.getElementById('quizCompletionAction');
+        if (container) container.remove();
+    }
+
     hideAllScreens() {
         ['welcomeScreen', 'bacScreen', 'quizScreen', 'resultScreen'].forEach(id => {
             if (this.elements[id]) {
@@ -907,12 +1153,18 @@ class UIRenderer {
             }
         });
         
-        // Remove back buttons when hiding screens
+        // Remove dynamic controls when hiding screens
         const bacBtn = document.getElementById('bacBackButton');
         if (bacBtn) bacBtn.remove();
         
         const quizBtn = document.getElementById('quizBackButton');
         if (quizBtn) quizBtn.remove();
+
+        const quizNav = document.getElementById('quizNavigationControls');
+        if (quizNav) quizNav.remove();
+
+        const quizCompletion = document.getElementById('quizCompletionAction');
+        if (quizCompletion) quizCompletion.remove();
     }
 
     fadeIn(element) {
@@ -940,6 +1192,7 @@ class UIRenderer {
 
         this.logger.log(`Rendering question ${question.step}/${question.total} (Type: ${question.type})`);
         this.currentQuestion = question;
+        this.hideQuizCompletionAction();
 
         if (this.elements.questionText) {
             this.elements.questionText.innerText = question.q;
@@ -966,6 +1219,8 @@ class UIRenderer {
             }, 150);
         }
 
+        this.ensureQuizNavigationControls();
+        this.updateQuizNavigationState(question);
         this.updateProgress(question.step, question.total);
     }
 
@@ -1275,6 +1530,7 @@ class UIRenderer {
 
     renderResults(resultData) {
         this.logger.log('Rendering results V3 with modern design:', resultData);
+        this.currentResultData = resultData;
 
         this.hideLoader();
         this.hideError();
@@ -1285,75 +1541,8 @@ class UIRenderer {
         }
 
         this.createConfetti();
-
-        const resultHtml = `
-            <div class="result-container-v2">
-                <div class="result-card-v2">
-                    <div class="result-header-v2">
-                        <div class="score-circle-v2">
-                            <span class="score-value-v2">${Math.round((resultData.recommendations?.top_fields?.[0]?.score || 43) * 100)}</span>
-                            <span class="score-label-v2">% match</span>
-                        </div>
-                        <h2 class="result-title-v2">${this.escapeHtml(resultData.title || 'Profil Unique')}</h2>
-                        <div class="result-tags-v2">
-                            ${resultData.recommendations?.top_field_details?.slice(0, 2).map(tag => `
-                                <span class="tag-v2"><i class="fas fa-chart-line"></i> ${this.escapeHtml(tag.field_name?.toLowerCase())} (${Math.round(tag.score * 100)}%)</span>
-                            `).join('') || ''}
-                            ${resultData.bac_info ? `<span class="tag-v2 bac"><i class="fas fa-graduation-cap"></i> Bac ${resultData.bac_info.code}: ${Math.round((resultData.bac_info.boost || 1) * 64)}%</span>` : ''}
-                        </div>
-                    </div>
-
-                    <div class="section-v2">
-                        <div class="section-title-v2">
-                            <i class="fas fa-star"></i>
-                            <span>Tes meilleures filières</span>
-                        </div>
-                        <div class="fields-list-v2" id="fieldsListV2">
-                            ${this.renderFieldsList(resultData.recommendations?.top_field_details || resultData.recommendations?.top_fields || [])}
-                        </div>
-                    </div>
-
-                    <div class="section-v2">
-                        <div class="section-title-v2">
-                            <i class="fas fa-university"></i>
-                            <span>Où étudier</span>
-                        </div>
-                        <div class="universities-list-v2" id="universitiesListV2">
-                            ${this.renderUniversitiesList(resultData.recommendations?.universities || [])}
-                        </div>
-                    </div>
-
-                    ${resultData.parentBudget ? `
-                    <div class="budget-tip-v2">
-                        <div class="tip-icon-v2">
-                            <i class="fas fa-coins"></i>
-                        </div>
-                        <span>Filtre budget : <strong>${this.escapeHtml(resultData.parentBudget.replace('Conseil stratégique : ', ''))}</strong></span>
-                    </div>
-                    ` : ''}
-
-                    <button class="restart-btn-v2" id="restartBtnV2">
-                        <i class="fas fa-sync-alt"></i>
-                        <span>Recommencer l'aventure</span>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        if (container) {
-            container.innerHTML = resultHtml;
-            
-            const restartBtn = document.getElementById('restartBtnV2');
-            if (restartBtn) {
-                restartBtn.addEventListener('click', () => {
-                    if (window.orientationApp && window.orientationApp.restart) {
-                        window.orientationApp.restart();
-                    } else {
-                        window.location.reload();
-                    }
-                });
-            }
-        }
+        this.showResults();
+        this.renderProfileAnalysis(resultData);
 
         if (this.elements.finalTitle) {
             this.elements.finalTitle.innerText = resultData.title || 'Profil Unique';
@@ -1377,13 +1566,190 @@ class UIRenderer {
         this.announceToScreenReader('Résultats affichés. ' + (resultData.aiInsight || ''));
     }
 
+    renderProfileAnalysis(resultData) {
+        const container = this.elements.recommendationsContainer;
+        if (!container) return;
+
+        const topDetails = resultData?.recommendations?.top_field_details || [];
+        const score = Math.round((topDetails[0]?.score || resultData?.coverage || 0.72) * 100);
+        const profileTitle = resultData?.title || 'Profil unique';
+        const summary = resultData?.aiInsight || 'Ton profil met en avant un fort potentiel d\'adaptation, de logique et de créativité.';
+        const interests = topDetails.slice(0, 5).map(item => item.field_name || 'Orientation').concat(['Technologie', 'Santé', 'Business']).slice(0, 6);
+        const dimensions = topDetails.slice(0, 4).map((item, index) => ({
+            name: item.field_name || `Dimension ${index + 1}`,
+            percent: Math.max(60, Math.min(95, Math.round((item.score || 0.7) * 100))),
+            description: index === 0 ? 'Capacité d\'analyse et de structuration' : index === 1 ? 'Créativité et imagination' : index === 2 ? 'Leadership et initiative' : 'Aptitude à collaborer et à communiquer'
+        }));
+
+        const html = `
+            <div class="result-container-v2">
+                <div class="result-card-v2">
+                    <div class="step-indicator-v2">
+                        <span class="step-pill active">1. Quiz</span>
+                        <span class="step-pill active">2. Profil</span>
+                        <span class="step-pill">3. Filières</span>
+                    </div>
+
+                    <div class="result-header-v2">
+                        <div class="score-circle-v2">
+                            <span class="score-value-v2">${score}%</span>
+                            <span class="score-label-v2">Profil</span>
+                        </div>
+                        <h2 class="result-title-v2">${this.escapeHtml(profileTitle)}</h2>
+                        <p class="result-summary-v2">${this.escapeHtml(summary)}</p>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-brain"></i>
+                            <span>Profil psychométrique</span>
+                        </div>
+                        <div class="dimensions-grid-v2">
+                            ${dimensions.map(d => `
+                                <div class="dimension-card-v2">
+                                    <div class="dimension-top-v2">
+                                        <strong>${this.escapeHtml(d.name)}</strong>
+                                        <span>${d.percent}%</span>
+                                    </div>
+                                    <div class="dimension-bar-v2">
+                                        <div class="dimension-fill-v2" style="width: ${d.percent}%"></div>
+                                    </div>
+                                    <small>${this.escapeHtml(d.description)}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-star"></i>
+                            <span>Forces et axes d'amélioration</span>
+                        </div>
+                        <div class="insight-grid-v2">
+                            <div class="insight-card-v2">
+                                <h4>Forces</h4>
+                                <ul>
+                                    <li>Capacité d'analyse fine</li>
+                                    <li>Curiosité naturelle</li>
+                                    <li>Capacité à apprendre rapidement</li>
+                                </ul>
+                            </div>
+                            <div class="insight-card-v2">
+                                <h4>Axes d'amélioration</h4>
+                                <ul>
+                                    <li>Structurer les idées</li>
+                                    <li>Prendre confiance en soi</li>
+                                    <li>Développer la communication</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-compass"></i>
+                            <span>Centres d'intérêt dominants</span>
+                        </div>
+                        <div class="tag-list-v2">
+                            ${interests.map(item => `<span class="tag-v2">${this.escapeHtml(item)}</span>`).join('')}
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-graduation-cap"></i>
+                            <span>Style d'apprentissage</span>
+                        </div>
+                        <p class="learning-style-v2">Visuel, pratique et expérientiel. Tu apprends mieux avec des exemples concrets et des retours rapides.</p>
+                    </div>
+
+                    <button class="restart-btn-v2" data-action="show-recommendations" id="showRecommendationsBtn">
+                        <i class="fas fa-arrow-right"></i>
+                        <span>Découvrir les filières recommandées</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+        this.ensureResultStyles();
+    }
+
+    renderRecommendations(resultData) {
+        const container = this.elements.recommendationsContainer;
+        if (!container) return;
+        const fields = resultData?.recommendations?.top_field_details || [];
+        const universities = resultData?.recommendations?.universities || [];
+
+        container.innerHTML = `
+            <div class="result-container-v2">
+                <div class="result-card-v2">
+                    <div class="step-indicator-v2">
+                        <span class="step-pill active">1. Quiz</span>
+                        <span class="step-pill active">2. Profil</span>
+                        <span class="step-pill active">3. Filières</span>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-list-ul"></i>
+                            <span>Filières recommandées</span>
+                        </div>
+                        <div class="fields-list-v2">
+                            ${fields.length > 0 ? fields.slice(0, 5).map((field, index) => {
+                                const score = Math.round((field.score || 0.7) * 100);
+                                return `
+                                    <div class="field-item-v2 recommendation-card-v2">
+                                        <div>
+                                            <div class="field-name-v2"><i class="fas fa-book-open"></i>${this.escapeHtml(field.field_name || 'Filière')}</div>
+                                            <small class="recommendation-meta-v2">Compatibilité ${score}% • ${score >= 80 ? 'Excellent' : score >= 65 ? 'Très bon' : score >= 50 ? 'Bon' : 'Moyen'}</small>
+                                        </div>
+                                        <span class="field-score-v2 ${score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low'}">${score}%</span>
+                                    </div>
+                                `;
+                            }).join('') : '<div class="empty-state">Aucune recommandation disponible pour le moment.</div>'}
+                        </div>
+                    </div>
+
+                    <div class="section-v2">
+                        <div class="section-title-v2">
+                            <i class="fas fa-university"></i>
+                            <span>Établissements</span>
+                        </div>
+                        <div class="universities-list-v2">
+                            ${this.renderUniversitiesList(universities)}
+                        </div>
+                    </div>
+
+                    <button class="restart-btn-v2" id="restartBtnV2">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Recommencer l'aventure</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const restartBtn = document.getElementById('restartBtnV2');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => {
+                if (window.orientationApp && window.orientationApp.restart) {
+                    window.orientationApp.restart();
+                } else {
+                    window.location.reload();
+                }
+            });
+        }
+    }
+
     renderFieldsList(fields) {
         if (!fields || fields.length === 0) return '<div class="empty-state">Aucune filière recommandée</div>';
         
         return fields.slice(0, 5).map((field, index) => {
             const fieldName = typeof field === 'string' ? field : (field.field_name || field.name || 'Filière');
             const score = typeof field === 'object' ? (field.decision_score || field.score || 0) : 0.3;
-            const scorePercent = Math.round(score * 100);
+            // Si score est déjà en pourcentage (> 1), le convertir en décimale
+            const normalizedScore = score > 1 ? score / 100 : score;
+            const scorePercent = Math.round(normalizedScore * 100);
             let scoreClass = 'low';
             if (scorePercent >= 60) scoreClass = 'high';
             else if (scorePercent >= 40) scoreClass = 'medium';
@@ -1420,7 +1786,9 @@ class UIRenderer {
             const uniName = uni.target_name || uni.nom || uni.name || 'Inconnu';
             const matchCount = uni.matching_fields_count || 0;
             const totalFields = uni.total_recommended_fields || 5;
-            const compatibility = uni.compatibility_score || (matchCount / Math.max(totalFields, 1));
+            let compatibility = uni.compatibility_score || (matchCount / Math.max(totalFields, 1));
+            // Si compatibility_score est déjà en pourcentage (> 1), le convertir en décimale
+            if (compatibility > 1) compatibility = compatibility / 100;
             const compatibilityPercent = Math.round(compatibility * 100);
             
             let pillClass = '';

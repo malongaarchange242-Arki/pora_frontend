@@ -141,7 +141,10 @@ class OrientationApp {
             this.ui = new UIRenderer({
                 logger: this.logger,
                 onQuestionAnswered: (value) => this.handleQuestionAnswered(value),
-                onBacSelected: (bacCode) => this.handleBacSelected(bacCode)
+                onBacSelected: (bacCode) => this.handleBacSelected(bacCode),
+                onNavigateQuestion: (direction) => this.navigateQuestion(direction),
+                onAnalyzeProfile: () => this.analyzeProfile(),
+                onShowRecommendations: () => this.showRecommendations()
             });
 
             this.logger.info('✅ Services created');
@@ -553,10 +556,8 @@ class OrientationApp {
             const result = this.quiz.answerQuestion(value);
 
             if (result.complete) {
-                // Quiz finished - submit and show results
-                await this.submitAndShowResults();
+                this.ui?.showQuizCompletionAction();
             } else if (this.ui) {
-                // Show next question
                 this.ui.renderQuestion(result.nextQuestion);
             }
         } catch (error) {
@@ -565,6 +566,35 @@ class OrientationApp {
                 this.ui.showError('Une erreur s\'est produite. Veuillez réessayer.');
             }
         }
+    }
+
+    navigateQuestion(direction) {
+        if (!this.quiz || !this.ui) return;
+
+        if (direction === 'prev') {
+            if (this.quiz.currentStep > 0) {
+                this.quiz.currentStep = Math.max(0, this.quiz.currentStep - 1);
+                const question = this.quiz.getCurrentQuestion();
+                this.ui.renderQuestion(question);
+            }
+            return;
+        }
+
+        if (direction === 'next') {
+            this.ui.renderQuestion(this.quiz.getCurrentQuestion());
+        }
+    }
+
+    analyzeProfile() {
+        if (!this.quiz || !this.ui) return;
+        this.submitAndShowResults();
+    }
+
+    showRecommendations() {
+        if (!this.ui || !this.proaResult) return;
+        this.ui.renderRecommendations(this.ui.currentResultData || {
+            recommendations: { top_field_details: [], universities: [] }
+        });
     }
 
     /**
