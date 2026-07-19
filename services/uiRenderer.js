@@ -746,6 +746,14 @@ class UIRenderer {
             this.style.transform = 'translateX(0)';
         });
 
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.logger.info('↩️ Bac back button clicked');
+            // Dispatch custom event for app.js to handle
+            document.dispatchEvent(new CustomEvent('bac-back-clicked'));
+        });
+
         document.body.appendChild(button);
     }
 
@@ -789,6 +797,14 @@ class UIRenderer {
             this.style.background = '#ffffff';
             this.style.borderColor = '#e2e8f0';
             this.style.transform = 'translateX(0)';
+        });
+
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.logger.info('↩️ Quiz back button clicked');
+            // Dispatch custom event for app.js to handle
+            document.dispatchEvent(new CustomEvent('quiz-back-clicked'));
         });
 
         document.body.appendChild(button);

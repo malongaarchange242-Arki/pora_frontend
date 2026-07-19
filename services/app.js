@@ -414,6 +414,15 @@ class OrientationApp {
             }
         });
 
+        // Listen for custom back button events
+        document.addEventListener('quiz-back-clicked', () => {
+            this.goBackFromQuiz();
+        });
+
+        document.addEventListener('bac-back-clicked', () => {
+            this.goBackFromBacSelection();
+        });
+
         // Network status listeners
         window.addEventListener('online', () => {
             this.logger.info('📡 Back online');
