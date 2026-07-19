@@ -443,13 +443,12 @@ class OrientationApp {
     }
 
     goBackFromQuiz() {
-        this.logger.info('↩️ Returning from quiz');
+        this.logger.info('↩️ Returning from quiz to bac selection');
         if (this.quiz) {
             this.quiz.resetQuiz();
         }
-        this.pendingRole = null;
-        if (this.ui && typeof this.ui.showWelcome === 'function') {
-            this.ui.showWelcome();
+        if (this.ui && typeof this.ui.showBacSelection === 'function') {
+            this.ui.showBacSelection(this.quiz?.getAvailableBacTypes());
         }
     }
 
