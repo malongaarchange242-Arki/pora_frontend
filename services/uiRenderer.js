@@ -714,14 +714,14 @@ class UIRenderer {
         button.className = 'bac-back-btn';
         button.setAttribute('data-action', 'bac-back');
         button.setAttribute('aria-label', 'Retour');
-        button.innerHTML = '<i class="fas fa-arrow-left"></i><span>Retour</span>';
+        button.innerHTML = '<i class="fas fa-arrow-left" style="margin-right: 6px;"></i>Retour';
         button.style.display = 'flex';
         button.style.alignItems = 'center';
-        button.style.gap = '8px';
-        button.style.marginBottom = '16px';
-        button.style.padding = '10px 14px';
+        button.style.justifyContent = 'center';
+        button.style.gap = '6px';
+        button.style.padding = '12px 18px';
         button.style.border = '1px solid #e2e8f0';
-        button.style.borderRadius = '999px';
+        button.style.borderRadius = '12px';
         button.style.background = '#ffffff';
         button.style.color = '#334155';
         button.style.cursor = 'pointer';
@@ -729,13 +729,24 @@ class UIRenderer {
         button.style.fontSize = '0.95rem';
         button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
         button.style.transition = 'all 0.2s ease';
+        button.style.position = 'fixed';
+        button.style.bottom = '20px';
+        button.style.left = '20px';
+        button.style.zIndex = '1000';
         
-        button.addEventListener('hover', function() {
+        button.addEventListener('mouseenter', function() {
             this.style.background = '#f8fafc';
             this.style.borderColor = '#cbd5e1';
+            this.style.transform = 'translateX(-2px)';
+        });
+        
+        button.addEventListener('mouseleave', function() {
+            this.style.background = '#ffffff';
+            this.style.borderColor = '#e2e8f0';
+            this.style.transform = 'translateX(0)';
         });
 
-        screen.insertBefore(button, screen.firstChild);
+        document.body.appendChild(button);
     }
 
     ensureQuizBackButton() {
@@ -868,6 +879,13 @@ class UIRenderer {
                 this.elements[id].classList.remove('active');
             }
         });
+        
+        // Remove back buttons when hiding screens
+        const bacBtn = document.getElementById('bacBackButton');
+        if (bacBtn) bacBtn.remove();
+        
+        const quizBtn = document.getElementById('quizBackButton');
+        if (quizBtn) quizBtn.remove();
     }
 
     fadeIn(element) {
