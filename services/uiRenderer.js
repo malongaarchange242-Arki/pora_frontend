@@ -759,28 +759,39 @@ class UIRenderer {
         button.className = 'quiz-back-btn';
         button.setAttribute('data-action', 'quiz-back');
         button.setAttribute('aria-label', 'Retour');
-        button.innerHTML = '<i class="fas fa-arrow-left"></i>';
+        button.innerHTML = '<i class="fas fa-arrow-left" style="margin-right: 6px;"></i>Retour';
         button.style.display = 'flex';
         button.style.alignItems = 'center';
         button.style.justifyContent = 'center';
-        button.style.position = 'absolute';
-        button.style.top = '20px';
-        button.style.left = '20px';
-        button.style.width = '44px';
-        button.style.height = '44px';
-        button.style.padding = '0';
+        button.style.gap = '6px';
+        button.style.padding = '12px 18px';
         button.style.border = '1px solid #e2e8f0';
         button.style.borderRadius = '12px';
         button.style.background = '#ffffff';
         button.style.color = '#334155';
         button.style.cursor = 'pointer';
-        button.style.fontSize = '1.1rem';
+        button.style.fontWeight = '600';
+        button.style.fontSize = '0.95rem';
         button.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
         button.style.transition = 'all 0.2s ease';
-        button.style.zIndex = '100';
+        button.style.position = 'fixed';
+        button.style.bottom = '20px';
+        button.style.left = '20px';
+        button.style.zIndex = '1000';
+        
+        button.addEventListener('mouseenter', function() {
+            this.style.background = '#f8fafc';
+            this.style.borderColor = '#cbd5e1';
+            this.style.transform = 'translateX(-2px)';
+        });
+        
+        button.addEventListener('mouseleave', function() {
+            this.style.background = '#ffffff';
+            this.style.borderColor = '#e2e8f0';
+            this.style.transform = 'translateX(0)';
+        });
 
-        screen.style.position = 'relative';
-        screen.appendChild(button);
+        document.body.appendChild(button);
     }
 
     getBacLabel(code) {
