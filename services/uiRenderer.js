@@ -161,6 +161,7 @@ class UIRenderer {
         this.ensureConfidenceBadge();
         this.ensureBacInfoContainer();
         this.ensureResultStyles();
+        this.ensureAttentionModal();
         this.elements = this.findElements();
     }
 
@@ -719,6 +720,100 @@ class UIRenderer {
         }
     }
 
+    // Attention modal and quiz banner
+    ensureAttentionModal() {
+        if (document.getElementById('attentionModal')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'attentionModal';
+        overlay.style.position = 'fixed';
+        overlay.style.left = '0';
+        overlay.style.top = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.display = 'none';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.background = 'rgba(15, 23, 42, 0.5)';
+        overlay.style.zIndex = '2000';
+
+        const box = document.createElement('div');
+        box.style.width = '92%';
+        box.style.maxWidth = '420px';
+        box.style.background = 'white';
+        box.style.padding = '18px';
+        box.style.borderRadius = '14px';
+        box.style.boxShadow = '0 12px 40px rgba(2,6,23,0.2)';
+        box.innerHTML = `
+            <h3 style="margin:0 0 8px;">Avant de commencer</h3>
+            <p style="margin:0 0 12px; color:#475569;">Merci de répondre honnêtement et avec attention. Tes réponses orienteront tes recommandations.</p>
+            <label style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <input type="checkbox" id="ackCheckbox"> <span style="font-weight:600;">Je confirme que je répondrai honnêtement</span>
+            </label>
+            <div style="display:flex; gap:10px;">
+                <button id="acceptAttentionBtn" data-action="accept-attention" disabled style="flex:1; padding:10px; border-radius:10px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; font-weight:700;">J'ai lu et je réponds honnêtement</button>
+            </div>
+        `;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        const checkbox = box.querySelector('#ackCheckbox');
+        const acceptBtn = box.querySelector('#acceptAttentionBtn');
+        checkbox.addEventListener('change', () => {
+            acceptBtn.disabled = !checkbox.checked;
+            acceptBtn.style.opacity = checkbox.checked ? '1' : '0.6';
+        });
+    }
+
+    showAttentionModal() {
+        const overlay = document.getElementById('attentionModal');
+        if (!overlay) return;
+        overlay.style.display = 'flex';
+        const cb = overlay.querySelector('#ackCheckbox');
+        if (cb) cb.checked = false;
+        const btn = overlay.querySelector('#acceptAttentionBtn');
+        if (btn) btn.disabled = true;
+    }
+
+    hideAttentionModal() {
+        const overlay = document.getElementById('attentionModal');
+        if (!overlay) return;
+        overlay.style.display = 'none';
+    }
+
+    ensureQuizAttentionBanner() {
+        const screen = this.elements.quizScreen;
+        if (!screen) return;
+        if (document.getElementById('quizAttentionBanner')) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'quizAttentionBanner';
+        banner.style.background = 'linear-gradient(90deg,#fef3c7,#feedd5)';
+        banner.style.border = '1px solid #fde68a';
+        banner.style.padding = '8px 12px';
+        banner.style.borderRadius = '10px';
+        banner.style.marginBottom = '12px';
+        banner.style.color = '#92400e';
+        banner.style.fontWeight = '700';
+        banner.style.display = 'flex';
+        banner.style.alignItems = 'center';
+        banner.style.gap = '8px';
+        banner.innerHTML = `<i class="fas fa-exclamation-circle"></i> Répondez honnêtement et prenez votre temps — vos réponses influencent vos recommandations.`;
+
+        const qText = this.elements.questionText;
+        if (qText && qText.parentElement) {
+            qText.parentElement.insertBefore(banner, qText);
+        } else if (screen) {
+            screen.insertBefore(banner, screen.firstChild);
+        }
+    }
+
+    hideQuizAttentionBanner() {
+        const b = document.getElementById('quizAttentionBanner');
+        if (b) b.remove();
+    }
+
     showWelcome() {
         this.logger.log('Showing welcome screen');
         this.hideAllScreens();
@@ -920,6 +1015,7 @@ class UIRenderer {
         this.logger.log(`Showing quiz screen (${role})`);
         this.hideAllScreens();
         this.fadeIn(this.elements.quizScreen);
+        this.ensureQuizAttentionBanner();
         this.ensureQuizNavigationControls();
         this.hideQuizCompletionAction();
         this.elements.gameHeader?.classList.add('active');

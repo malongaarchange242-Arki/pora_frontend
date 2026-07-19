@@ -69,6 +69,8 @@ class OrientationApp {
         this.proaResult = null;
         this.poraResult = null;
         this.pendingRole = null;
+        // Has the user acknowledged the attention notice before starting the quiz?
+        this.attentionAcknowledged = false;
         this.initialized = false;
         this.eventListenersSetup = false;
         this.pendingFlutterAuth = null;
@@ -404,6 +406,19 @@ class OrientationApp {
                 return;
             }
 
+            const acceptAttention = e.target.closest('[data-action="accept-attention"]');
+            if (acceptAttention) {
+                e.preventDefault();
+                this.attentionAcknowledged = true;
+                const roleToStart = this.pendingRole || acceptAttention.getAttribute('data-role') || 'student';
+                this.pendingRole = null;
+                if (this.ui && typeof this.ui.hideAttentionModal === 'function') {
+                    this.ui.hideAttentionModal();
+                }
+                this.startQuiz(roleToStart);
+                return;
+            }
+
             const bacBackButton = e.target.closest('[data-action="bac-back"]');
             if (bacBackButton) {
                 this.goBackFromBacSelection();
@@ -522,6 +537,16 @@ class OrientationApp {
                     this.ui.showBacSelection(availableBacTypes);
                 }
                 this.logger.info('Waiting for required bac type before starting student quiz');
+                return;
+            }
+
+            // Require user to acknowledge attention notice before starting the quiz
+            if (!this.attentionAcknowledged) {
+                this.pendingRole = role;
+                if (this.ui && typeof this.ui.showAttentionModal === 'function') {
+                    this.ui.showAttentionModal();
+                }
+                this.logger.info('Showing attention notice before starting quiz');
                 return;
             }
 
@@ -987,10 +1012,10 @@ class OrientationApp {
             poraCallTime: null,
             poraCallDuration: 0
         };
-        if (this.ui) {
-            this.ui.showWelcome();
-        }
         this.trackEvent('app_restart', {});
+
+        // Reload the app to ensure the restart returns to a clean initial state
+        window.location.reload();
     }
 
     /**
