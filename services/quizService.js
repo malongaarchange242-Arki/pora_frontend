@@ -354,8 +354,16 @@ class QuizService {
         
         if (question.type === 'likert' || question.type === 'scale') {
             const numValue = Number(normalizedValue);
-            if (Number.isFinite(numValue) && numValue >= 1 && numValue <= 5) {
-                return numValue;
+            if (Number.isFinite(numValue)) {
+                if (numValue >= 1 && numValue <= 4) {
+                    return numValue;
+                }
+                if (numValue === 5) {
+                    return 4;
+                }
+                if (numValue > 5) {
+                    return 4;
+                }
             }
         }
 
